@@ -13,7 +13,7 @@ class PointagePolicy
      */
     public function viewAny(User $user): bool
     {
-        //
+        return $user->isAdmin() ;
     }
 
     /**
@@ -21,7 +21,7 @@ class PointagePolicy
      */
     public function view(User $user, Pointage $pointage): bool
     {
-        //
+        return $user->isAdmin() || $user->isAgent() || $user->isChefDeChantier() || $user->isMagasinier() || $user->isRh();
     }
 
     /**
@@ -29,7 +29,7 @@ class PointagePolicy
      */
     public function create(User $user): bool
     {
-        //
+        return $user->isAdmin() || $user->isChefDeChantier();
     }
 
     /**
@@ -37,7 +37,7 @@ class PointagePolicy
      */
     public function update(User $user, Pointage $pointage): bool
     {
-        //
+        return $user->isAdmin() || $user->isChefDeChantier();
     }
 
     /**
@@ -45,7 +45,7 @@ class PointagePolicy
      */
     public function delete(User $user, Pointage $pointage): bool
     {
-        //
+        return $user->isAdmin() || $user->isChefDeChantier();
     }
 
     /**
@@ -53,7 +53,7 @@ class PointagePolicy
      */
     public function restore(User $user, Pointage $pointage): bool
     {
-        //
+        return $user->isAdmin() || $user->isChefDeChantier();
     }
 
     /**
@@ -61,6 +61,6 @@ class PointagePolicy
      */
     public function forceDelete(User $user, Pointage $pointage): bool
     {
-        //
+        return $user->isAdmin() || $user->isChefDeChantier();
     }
 }

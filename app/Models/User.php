@@ -54,4 +54,30 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Pointage::class);
     }
+
+    public function isAdmin()
+    {
+        return $this->role === 'admin' ? true : false;
+    }
+
+    public function isRh()
+    {
+        return $this->role === 'rh' ? true : false;
+    }
+
+    public function isAgent()
+    {
+        return $this->role === 'agent' ? true : false;
+    }
+
+    public function isChefDeChantier()
+    {
+        return $this->role === 'chef_de_chantier' ? true : false;
+    }
+
+    public function isMagasinier()
+    {
+        return $this->role === 'magasinier' ? true : false;
+    }
+
 }
