@@ -10,7 +10,7 @@ class Pointage extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
+        'user_id', // Keep this for backward compatibility
         'project_id',
         'date',
         'heure_debut',
@@ -28,9 +28,10 @@ class Pointage extends Model
         'heures_supplementaires_approuvees' => 'boolean',
     ];
 
-    public function user()
+    public function users()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsToMany(User::class, 'pointage_user', 'pointage_id', 'user_id')
+                    ->select(['users.id', 'users.name', 'users.email', 'users.role']);
     }
 
     public function project()

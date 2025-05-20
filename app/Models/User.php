@@ -46,4 +46,12 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+    
+    /**
+     * Get the pointages for the user
+     */
+    public function pointages()
+    {
+        return $this->belongsToMany(Pointage::class);
+    }
 }

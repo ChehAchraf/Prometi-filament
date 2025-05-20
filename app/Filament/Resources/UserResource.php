@@ -50,7 +50,8 @@ class UserResource extends Resource
                         'admin' => 'Admin',
                         'rh' => 'Rh',
                         'chef_de_chantier' => 'Chef de chantier',
-                        'magasinier' => 'Magasinier'
+                        'magasinier' => 'Magasinier',
+                        'agent' => 'Agent'
                     ])
                     ->required()
                     ->searchable(),
