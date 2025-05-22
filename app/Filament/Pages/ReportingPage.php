@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Models\Project;
-use App\Models\User;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -26,7 +25,6 @@ class ReportingPage extends Page implements HasForms
     public $startDate;
     public $endDate;
     public $projectId;
-    public $userId;
     public $reportType = 'daily';
     
     public function mount(): void
@@ -58,14 +56,7 @@ class ReportingPage extends Page implements HasForms
                     })
                     ->searchable(),
                 
-                Select::make('userId')
-                    ->label('Employé')
-                    ->options(function() {
-                        $options = ['' => 'Tous les employés'];
-                        return $options + User::pluck('name', 'id')->toArray();
-                    })
-                    ->searchable(),
-                
+
                 Select::make('reportType')
                     ->label('Type de rapport')
                     ->options([
@@ -87,7 +78,6 @@ class ReportingPage extends Page implements HasForms
             'startDate' => $this->startDate,
             'endDate' => $this->endDate,
             'projectId' => $this->projectId,
-            'userId' => $this->userId,
             'reportType' => $this->reportType,
         ]);
         

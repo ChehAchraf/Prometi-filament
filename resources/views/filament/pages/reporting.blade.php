@@ -24,7 +24,6 @@
             'startDate' => $this->startDate,
             'endDate' => $this->endDate,
             'projectId' => $this->projectId,
-            'userId' => $this->userId,
             'reportType' => $this->reportType,
         ])
     </div>
