@@ -25,6 +25,7 @@ class User extends Authenticatable
         'address',
         'city',
         'role',
+        'status',
     ];
 
     /**
@@ -78,6 +79,32 @@ class User extends Authenticatable
     public function isMagasinier()
     {
         return $this->role === 'magasinier' ? true : false;
+    }
+    
+    public function isChefDeProjet()
+    {
+        return $this->role === 'chef_de_projet' ? true : false;
+    }
+    
+    public function isDirecteurTechnique()
+    {
+        return $this->role === 'directeur_technique' ? true : false;
+    }
+    
+    /**
+     * Get the projects where this user is assigned
+     */
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_user', 'user_id', 'project_id');
+    }
+    
+    /**
+     * Get the projects where this user is the chef de chantier
+     */
+    public function managedProjects()
+    {
+        return $this->hasMany(Project::class, 'chef_de_chantier_id');
     }
 
 }

@@ -22,28 +22,46 @@ class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-building-office';
+    
+    protected static ?string $navigationGroup = 'Gestion des Projets';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 TextInput::make('name')
+                    ->label('Nom du projet')
                     ->required()
                     ->maxLength(255),
                 TextInput::make('description')
                     ->required()
                     ->maxLength(255),
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Date de début')
+                    ->required(),
+                Forms\Components\DatePicker::make('end_date')
+                    ->label('Date de fin')
+                    ->required()
+                    ->afterOrEqual('start_date'),
                 Select::make('status')
                     ->options([
                         'en_cours' => 'En cours',
                         'termine' => 'Terminé',
+                        'en_attente' => 'En attente',
+                        'annule' => 'Annulé',
                     ])
                     ->required(),
                 Select::make('chef_de_chantier_id')
                     ->label('Chef de chantier')
                     ->options(User::query()->where('role', 'chef_de_chantier')->pluck('name', 'id'))
                     ->required()
+                    ->searchable(),
+                Select::make('users')
+                    ->label('Collaborateurs assignés')
+                    ->relationship('users', 'name')
+                    ->multiple()
+                    ->preload()
                     ->searchable(),
             ]);
     }
@@ -81,7 +99,7 @@ class ProjectResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\UsersRelationManager::class,
         ];
     }
 

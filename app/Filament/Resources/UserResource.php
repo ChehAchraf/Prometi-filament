@@ -20,7 +20,9 @@ class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-users';
+    
+    protected static ?string $navigationGroup = 'Gestion des Utilisateurs';
 
     public static function form(Form $form): Form
     {
@@ -47,14 +49,32 @@ class UserResource extends Resource
                     ->maxLength(255),
                 Select::make('role')
                     ->options([
-                        'admin' => 'Admin',
-                        'rh' => 'Rh',
-                        'chef_de_chantier' => 'Chef de chantier',
-                        'magasinier' => 'Magasinier',
+                        'admin' => 'Admin (SuperAdmin)',
+                        'rh' => 'RH (Éditeur de compte)',
+                        'chef_de_chantier' => 'Chef de chantier (Éditeur de pointage)',
+                        'magasinier' => 'Magasinier (Éditeur de pointage)',
+                        'chef_de_projet' => 'Chef de projet (Visualisateur)',
+                        'directeur_technique' => 'Directeur technique (Visualisateur)',
                         'agent' => 'Agent'
                     ])
                     ->required()
                     ->searchable(),
+                Select::make('status')
+                    ->options([
+                        'actif' => 'Actif',
+                        'conge' => 'En congé',
+                        'mission' => 'En mission',
+                        'absent' => 'Absent',
+                        'malade' => 'Malade'
+                    ])
+                    ->default('actif')
+                    ->required(),
+                Select::make('projects')
+                    ->relationship('projects', 'name')
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->label('Projets assignés'),
             ]);
     }
 

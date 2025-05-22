@@ -19,6 +19,9 @@ class Pointage extends Model
         'heures_supplementaires',
         'heures_supplementaires_approuvees',
         'status',
+        'is_jour_ferie',
+        'coefficient',
+        'commentaire',
     ];
     
     protected $casts = [
@@ -26,6 +29,7 @@ class Pointage extends Model
         'heure_debut' => 'datetime',
         'heure_fin' => 'datetime',
         'heures_supplementaires_approuvees' => 'boolean',
+        'is_jour_ferie' => 'boolean',
     ];
 
     public function users()
@@ -59,6 +63,7 @@ class Pointage extends Model
             
             $this->heures_travaillees = round($hours, 2);
             $this->calculateOvertime();
+            $this->calculateCoefficient();
         }
         
         return $this;
@@ -74,6 +79,60 @@ class Pointage extends Model
         } else {
             $this->heures_supplementaires = 0;
         }
+        
+        return $this;
+    }
+    
+    /**
+     * Calculate the coefficient based on time and day type
+     */
+    public function calculateCoefficient()
+    {
+        if (!$this->heure_debut || !$this->heure_fin) {
+            return $this;
+        }
+        
+        $debut = new \DateTime($this->heure_debut);
+        $fin = new \DateTime($this->heure_fin);
+        
+        // Extract only the time part
+        $debutTime = $debut->format('H:i:s');
+        $finTime = $fin->format('H:i:s');
+        
+        // If end time is before start time, it spans to the next day
+        $spansNextDay = false;
+        if ($fin < $debut) {
+            $spansNextDay = true;
+        }
+        
+        // Set default coefficient
+        $coefficient = 1.0;
+        
+        if ($this->is_jour_ferie) {
+            // Jour férié rules
+            if (($debutTime >= '06:00:00' && $debutTime < '21:00:00') || 
+                ($finTime > '06:00:00' && $finTime <= '21:00:00')) {
+                $coefficient = 1.5;
+            } else {
+                $coefficient = 2.0;
+            }
+        } else {
+            // Jour normal rules
+            if (($debutTime >= '08:00:00' && $debutTime < '17:00:00') || 
+                ($finTime > '08:00:00' && $finTime <= '17:00:00')) {
+                // Normal hours - coefficient remains 1.0
+            } else if (($debutTime >= '06:00:00' && $debutTime < '08:00:00') || 
+                       ($debutTime >= '17:00:00' && $debutTime < '21:00:00') || 
+                       ($finTime > '06:00:00' && $finTime <= '08:00:00') || 
+                       ($finTime > '17:00:00' && $finTime <= '21:00:00')) {
+                $coefficient = 1.25;
+            } else {
+                // Night hours (21:00 - 06:00)
+                $coefficient = 1.5;
+            }
+        }
+        
+        $this->coefficient = $coefficient;
         
         return $this;
     }
@@ -96,6 +155,14 @@ class Pointage extends Model
         $overtime = $this->heures_supplementaires_approuvees ? $this->heures_supplementaires : 0;
         
         return $baseHours + $overtime;
+    }
+    
+    /**
+     * Get the weighted hours (hours multiplied by coefficient)
+     */
+    public function getWeightedHoursAttribute()
+    {
+        return round($this->effective_hours * $this->coefficient, 2);
     }
     
     /**

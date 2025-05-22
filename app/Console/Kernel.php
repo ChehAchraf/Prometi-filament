@@ -12,7 +12,27 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Send morning reminders at 8:00 AM on weekdays
+        $schedule->command('app:send-pointage-reminders --morning')
+                 ->weekdays()
+                 ->at('08:00')
+                 ->timezone('Europe/Paris');
+        
+        // Send evening reminders at 5:00 PM on weekdays
+        $schedule->command('app:send-pointage-reminders --evening')
+                 ->weekdays()
+                 ->at('17:00')
+                 ->timezone('Europe/Paris');
+                 
+        // Check for unapproved overtime hours and send notifications
+        $schedule->command('app:check-overtime-approvals')
+                 ->dailyAt('22:00')
+                 ->timezone('Europe/Paris');
+                 
+        // Check for unjustified absences
+        $schedule->command('app:check-absences')
+                 ->dailyAt('23:00')
+                 ->timezone('Europe/Paris');
     }
 
     /**

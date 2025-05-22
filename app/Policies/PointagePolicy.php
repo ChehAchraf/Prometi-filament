@@ -13,7 +13,10 @@ class PointagePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isAdmin() ;
+        // All roles can view pointages, but they will be filtered based on their role
+        return $user->isAdmin() || $user->isRh() || $user->isChefDeChantier() || 
+               $user->isMagasinier() || $user->isChefDeProjet() || $user->isDirecteurTechnique() || 
+               $user->isAgent();
     }
 
     /**
@@ -21,7 +24,45 @@ class PointagePolicy
      */
     public function view(User $user, Pointage $pointage): bool
     {
-        return $user->isAdmin() || $user->isAgent() || $user->isChefDeChantier() || $user->isMagasinier() || $user->isRh();
+        // Admin can view all pointages
+        if ($user->isAdmin()) {
+            return true;
+        }
+        
+        // RH can view all pointages
+        if ($user->isRh()) {
+            return true;
+        }
+        
+        // Chef de chantier can view pointages for their projects
+        if ($user->isChefDeChantier()) {
+            $managedProjectIds = $user->managedProjects()->pluck('id')->toArray();
+            return in_array($pointage->project_id, $managedProjectIds);
+        }
+        
+        // Magasinier can view all pointages
+        if ($user->isMagasinier()) {
+            return true;
+        }
+        
+        // Chef de projet can view pointages for their projects
+        if ($user->isChefDeProjet()) {
+            $projectIds = $user->projects()->pluck('id')->toArray();
+            return in_array($pointage->project_id, $projectIds);
+        }
+        
+        // Directeur technique can view all pointages
+        if ($user->isDirecteurTechnique()) {
+            return true;
+        }
+        
+        // Agent can only view their own pointages
+        if ($user->isAgent()) {
+            $userIds = $pointage->users()->pluck('id')->toArray();
+            return in_array($user->id, $userIds);
+        }
+        
+        return false;
     }
 
     /**
@@ -29,7 +70,8 @@ class PointagePolicy
      */
     public function create(User $user): bool
     {
-        return $user->isAdmin() || $user->isChefDeChantier();
+        // Only Chef de chantier and Magasinier can create pointages
+        return $user->isAdmin() || $user->isChefDeChantier() || $user->isMagasinier();
     }
 
     /**
@@ -37,7 +79,23 @@ class PointagePolicy
      */
     public function update(User $user, Pointage $pointage): bool
     {
-        return $user->isAdmin() || $user->isChefDeChantier();
+        // Admin can update any pointage
+        if ($user->isAdmin()) {
+            return true;
+        }
+        
+        // Chef de chantier can update pointages for their projects
+        if ($user->isChefDeChantier()) {
+            $managedProjectIds = $user->managedProjects()->pluck('id')->toArray();
+            return in_array($pointage->project_id, $managedProjectIds);
+        }
+        
+        // Magasinier can update pointages
+        if ($user->isMagasinier()) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -45,7 +103,17 @@ class PointagePolicy
      */
     public function delete(User $user, Pointage $pointage): bool
     {
-        return $user->isAdmin() || $user->isChefDeChantier();
+        // Only Admin and Chef de chantier can delete pointages
+        if ($user->isAdmin()) {
+            return true;
+        }
+        
+        if ($user->isChefDeChantier()) {
+            $managedProjectIds = $user->managedProjects()->pluck('id')->toArray();
+            return in_array($pointage->project_id, $managedProjectIds);
+        }
+        
+        return false;
     }
 
     /**
