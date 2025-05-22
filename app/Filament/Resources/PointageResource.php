@@ -41,6 +41,26 @@ class PointageResource extends Resource
     {
         return $form
             ->schema([
+                Select::make('project_id')
+                    ->relationship('project', 'name')
+                    ->searchable()
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state) {
+                            // Get all agents attached to the selected project
+                            $project = \App\Models\Project::find($state);
+                            if ($project) {
+                                $agentIds = $project->users()
+                                    ->where('role', 'agent')
+                                    ->pluck('users.id')
+                                    ->toArray();
+                                
+                                // Set the agents to the form
+                                $set('users', $agentIds);
+                            }
+                        }
+                    }),
                 Select::make('users')
                     ->relationship('users', 'name', function ($query) {
                         return $query->where('role', 'agent');
@@ -50,10 +70,6 @@ class PointageResource extends Resource
                     ->searchable()
                     ->required()
                     ->label('Agents'),
-                Select::make('project_id')
-                    ->relationship('project', 'name')
-                    ->searchable()
-                    ->required(),
                 DatePicker::make('date')
                     ->required(),
                 Toggle::make('is_jour_ferie')
