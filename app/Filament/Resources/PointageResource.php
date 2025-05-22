@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PointageResource\Pages;
 use App\Filament\Resources\PointageResource\RelationManagers;
 use App\Models\Pointage;
+use App\Models\Project;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -46,10 +48,10 @@ class PointageResource extends Resource
                     ->searchable()
                     ->required()
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set, $get) {
+                    ->afterStateUpdated(function ($state, callable $set) {
                         if ($state) {
                             // Get all agents attached to the selected project
-                            $project = \App\Models\Project::find($state);
+                            $project = Project::find($state);
                             if ($project) {
                                 // Get agent IDs attached to this project
                                 $agentIds = $project->users()
@@ -57,15 +59,11 @@ class PointageResource extends Resource
                                     ->pluck('users.id')
                                     ->toArray();
                                     
-                                // Set the available agents
-                                $set('available_agents', $agentIds);
-                                
                                 // Automatically select all agents
                                 $set('default_agents', $agentIds);
                             }
                         }
                     }),
-                Forms\Components\Hidden::make('available_agents'),
                 DatePicker::make('date')
                     ->required(),
                 Toggle::make('is_jour_ferie')
@@ -77,15 +75,17 @@ class PointageResource extends Resource
                         Select::make('default_agents')
                             ->label('Agents')
                             ->multiple()
-                            ->options(function (callable $get) {
-                                $availableAgents = $get('available_agents');
-                                if (empty($availableAgents)) return [];
-                                
-                                return \App\Models\User::whereIn('id', $availableAgents)
-                                    ->pluck('name', 'id')
-                                    ->toArray();
+                            ->relationship('users', 'name', function (Builder $query, callable $get) {
+                                $projectId = $get('../../project_id');
+                                if ($projectId) {
+                                    return $query->whereHas('projects', function (Builder $query) use ($projectId) {
+                                        $query->where('projects.id', $projectId);
+                                    })->where('users.role', 'agent');
+                                }
+                                return $query->where('users.role', 'agent');
                             })
                             ->searchable()
+                            ->preload()
                             ->required(),
                         Select::make('default_status')
                             ->label('Statut par défaut')
@@ -118,13 +118,12 @@ class PointageResource extends Resource
                     ->schema([
                         Forms\Components\Repeater::make('exceptions')
                             ->schema([
-                                Select::make('agent_id')
+                                Forms\Components\Select::make('agent_id')
                                     ->label('Agent')
-                                    ->options(function (callable $get) {
-                                        $availableAgents = $get('available_agents');
-                                        if (empty($availableAgents)) return [];
-                                        
-                                        return \App\Models\User::whereIn('id', $availableAgents)
+                                    ->options(function () {
+                                        // Get all agents - we'll filter them in the frontend
+                                        return User::where('role', 'agent')
+                                            ->orderBy('name')
                                             ->pluck('name', 'id')
                                             ->toArray();
                                     })
@@ -159,7 +158,7 @@ class PointageResource extends Resource
                                     ->maxLength(255),
                             ])
                             ->columns(1)
-                            ->itemLabel(fn (array $state): ?string => \App\Models\User::find($state['agent_id'])?->name ?? 'Agent')
+                            ->itemLabel(fn (array $state): ?string => User::find($state['agent_id'])?->name ?? 'Agent')
                             ->collapsible()
                             ->collapsed()
                             ->defaultItems(0),

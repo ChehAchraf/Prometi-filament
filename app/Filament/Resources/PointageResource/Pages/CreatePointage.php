@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PointageResource\Pages;
 
 use App\Filament\Resources\PointageResource;
+use App\Models\Pointage;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 
@@ -17,10 +18,10 @@ class CreatePointage extends CreateRecord
         $defaultAgents = $data['default_agents'] ?? [];
         $exceptions = $data['exceptions'] ?? [];
         
-        // Map exception agents by ID for easy lookup
-        $exceptionAgents = [];
+        // Create a map of exception agents by ID for easy lookup
+        $exceptionAgentIds = [];
         foreach ($exceptions as $exception) {
-            $exceptionAgents[$exception['agent_id']] = $exception;
+            $exceptionAgentIds[] = $exception['agent_id'];
         }
         
         // For backward compatibility, set user_id to the first default agent if available
@@ -50,7 +51,6 @@ class CreatePointage extends CreateRecord
         unset($data['default_heure_debut']);
         unset($data['default_heure_fin']);
         unset($data['exceptions']);
-        unset($data['available_agents']);
         
         return $data;
     }
@@ -81,7 +81,7 @@ class CreatePointage extends CreateRecord
             $userId = $exception['agent_id'];
             
             // Create a new pointage record for this agent with their specific data
-            $newPointage = new \App\Models\Pointage([
+            $newPointage = new Pointage([
                 'project_id' => $record->project_id,
                 'date' => $record->date,
                 'is_jour_ferie' => $record->is_jour_ferie,
