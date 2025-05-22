@@ -57,44 +57,38 @@ class PointageResource extends Resource
                                     ->pluck('users.id')
                                     ->toArray();
                                     
-                                // Update the available options in the agents selection
+                                // Set the available agents
                                 $set('available_agents', $agentIds);
                                 
-                                // Automatically select all agents from the project
-                                $set('users', $agentIds);
+                                // Automatically select all agents
+                                $set('default_agents', $agentIds);
                             }
                         }
                     }),
                 Forms\Components\Hidden::make('available_agents'),
-                Forms\Components\Section::make('Sélection des agents')
-                    ->description('Sélectionnez les agents pour ce pointage')
+                DatePicker::make('date')
+                    ->required(),
+                Toggle::make('is_jour_ferie')
+                    ->label('Jour férié')
+                    ->helperText('Cochez si c\'est un jour férié'),
+                Forms\Components\Section::make('Paramètres par défaut')
+                    ->description('Paramètres appliqués à tous les agents sélectionnés')
                     ->schema([
-                        Select::make('users')
-                            ->relationship('users', 'name', function ($query, callable $get) {
-                                $availableAgents = $get('available_agents');
-                                $query = $query->where('users.role', 'agent');
-                                
-                                if (!empty($availableAgents)) {
-                                    $query->whereIn('users.id', $availableAgents);
-                                }
-                                
-                                return $query;
-                            })
+                        Select::make('default_agents')
+                            ->label('Agents')
                             ->multiple()
-                            ->preload()
+                            ->options(function (callable $get) {
+                                $availableAgents = $get('available_agents');
+                                if (empty($availableAgents)) return [];
+                                
+                                return \App\Models\User::whereIn('id', $availableAgents)
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
                             ->searchable()
-                            ->required()
-                            ->label('Agents'),
-                    ])
-                    ->collapsible(),
-                Forms\Components\Section::make('Informations du pointage')
-                    ->schema([
-                        DatePicker::make('date')
                             ->required(),
-                        Toggle::make('is_jour_ferie')
-                            ->label('Jour férié')
-                            ->helperText('Cochez si c\'est un jour férié'),
-                        Select::make('status')
+                        Select::make('default_status')
+                            ->label('Statut par défaut')
                             ->options([
                                 'present' => 'Présent',
                                 'absent' => 'Absent',
@@ -102,43 +96,78 @@ class PointageResource extends Resource
                                 'conge' => 'Congé',
                                 'retard' => 'Retard',
                             ])
-                            ->required()
-                            ->live()
                             ->default('present')
-                            ->searchable(),
+                            ->required()
+                            ->live(),
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                TimePicker::make('heure_debut')
+                                TimePicker::make('default_heure_debut')
+                                    ->label('Heure de début par défaut')
                                     ->seconds(false)
                                     ->required()
-                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
-                                TimePicker::make('heure_fin')
+                                    ->visible(fn (callable $get) => $get('default_status') !== 'absent' && $get('default_status') !== 'conge' && $get('default_status') !== 'malade'),
+                                TimePicker::make('default_heure_fin')
+                                    ->label('Heure de fin par défaut')
                                     ->seconds(false)
                                     ->required()
-                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
+                                    ->visible(fn (callable $get) => $get('default_status') !== 'absent' && $get('default_status') !== 'conge' && $get('default_status') !== 'malade'),
                             ]),
-                        Forms\Components\Grid::make(3)
+                    ]),
+                Forms\Components\Section::make('Exceptions')
+                    ->description('Agents avec des paramètres différents (optionnel)')
+                    ->schema([
+                        Forms\Components\Repeater::make('exceptions')
                             ->schema([
-                                TextInput::make('heures_travaillees')
-                                    ->label('Heures Travaillées')
-                                    ->numeric()
-                                    ->disabled()
-                                    ->helperText('Calculé automatiquement'),
-                                TextInput::make('heures_supplementaires')
-                                    ->label('Heures Supplémentaires')
-                                    ->numeric()
-                                    ->disabled()
-                                    ->helperText('Calculé automatiquement'),
-                                TextInput::make('coefficient')
-                                    ->label('Coefficient')
-                                    ->numeric()
-                                    ->disabled()
-                                    ->helperText('Calculé automatiquement selon les plages horaires'),
-                            ]),
-                        Toggle::make('heures_supplementaires_approuvees')
-                            ->label('Approuver les heures supplémentaires')
-                            ->helperText('Cochez pour approuver les heures supplémentaires')
-                            ->visible(fn (callable $get) => $get('status') === 'present' || $get('status') === 'retard'),
+                                Select::make('agent_id')
+                                    ->label('Agent')
+                                    ->options(function (callable $get) {
+                                        $availableAgents = $get('available_agents');
+                                        if (empty($availableAgents)) return [];
+                                        
+                                        return \App\Models\User::whereIn('id', $availableAgents)
+                                            ->pluck('name', 'id')
+                                            ->toArray();
+                                    })
+                                    ->searchable()
+                                    ->required(),
+                                Select::make('status')
+                                    ->label('Statut')
+                                    ->options([
+                                        'present' => 'Présent',
+                                        'absent' => 'Absent',
+                                        'malade' => 'Malade',
+                                        'conge' => 'Congé',
+                                        'retard' => 'Retard',
+                                    ])
+                                    ->required()
+                                    ->live(),
+                                Forms\Components\Grid::make(2)
+                                    ->schema([
+                                        TimePicker::make('heure_debut')
+                                            ->label('Heure de début')
+                                            ->seconds(false)
+                                            ->required()
+                                            ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
+                                        TimePicker::make('heure_fin')
+                                            ->label('Heure de fin')
+                                            ->seconds(false)
+                                            ->required()
+                                            ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
+                                    ]),
+                                Forms\Components\Textarea::make('commentaire')
+                                    ->label('Commentaire spécifique')
+                                    ->maxLength(255),
+                            ])
+                            ->columns(1)
+                            ->itemLabel(fn (array $state): ?string => \App\Models\User::find($state['agent_id'])?->name ?? 'Agent')
+                            ->collapsible()
+                            ->collapsed()
+                            ->defaultItems(0),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+                Forms\Components\Section::make('Commentaire général')
+                    ->schema([
                         Forms\Components\Textarea::make('commentaire')
                             ->label('Commentaire')
                             ->maxLength(500),
