@@ -35,7 +35,7 @@ class Pointage extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'pointage_user', 'pointage_id', 'user_id')
-                    ->select(['users.id', 'users.name', 'users.email', 'users.role']);
+                    ->select(['users.id as id', 'users.name', 'users.email', 'users.role']);
     }
 
     public function project()

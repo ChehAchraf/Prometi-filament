@@ -46,72 +46,104 @@ class PointageResource extends Resource
                     ->searchable()
                     ->required()
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set) {
+                    ->afterStateUpdated(function ($state, callable $set, $get) {
                         if ($state) {
                             // Get all agents attached to the selected project
                             $project = \App\Models\Project::find($state);
                             if ($project) {
+                                // Get agent IDs attached to this project
                                 $agentIds = $project->users()
-                                    ->where('role', 'agent')
+                                    ->where('users.role', 'agent')
                                     ->pluck('users.id')
                                     ->toArray();
+                                    
+                                // Update the available options in the agents selection
+                                $set('available_agents', $agentIds);
                                 
-                                // Set the agents to the form
+                                // Automatically select all agents from the project
                                 $set('users', $agentIds);
                             }
                         }
                     }),
-                Select::make('users')
-                    ->relationship('users', 'name', function ($query) {
-                        return $query->where('role', 'agent');
-                    })
-                    ->multiple()
-                    ->preload()
-                    ->searchable()
-                    ->required()
-                    ->label('Agents'),
-                DatePicker::make('date')
-                    ->required(),
-                Toggle::make('is_jour_ferie')
-                    ->label('Jour férié')
-                    ->helperText('Cochez si c\'est un jour férié'),
-                TimePicker::make('heure_debut')
-                    ->seconds(false)
-                    ->required(),
-                TimePicker::make('heure_fin')
-                    ->seconds(false)
-                    ->required(),
-                TextInput::make('heures_travaillees')
-                    ->label('Heures Travaillées')
-                    ->numeric()
-                    ->disabled()
-                    ->helperText('Calculé automatiquement'),
-                TextInput::make('heures_supplementaires')
-                    ->label('Heures Supplémentaires')
-                    ->numeric()
-                    ->disabled()
-                    ->helperText('Calculé automatiquement'),
-                TextInput::make('coefficient')
-                    ->label('Coefficient')
-                    ->numeric()
-                    ->disabled()
-                    ->helperText('Calculé automatiquement selon les plages horaires'),
-                Toggle::make('heures_supplementaires_approuvees')
-                    ->label('Approuver les heures supplémentaires')
-                    ->helperText('Cochez pour approuver les heures supplémentaires'),
-                Select::make('status')
-                    ->options([
-                        'present' => 'Présent',
-                        'absent' => 'Absent',
-                        'malade' => 'Malade',
-                        'conge' => 'Congé',
-                        'retard' => 'Retard',
+                Forms\Components\Hidden::make('available_agents'),
+                Forms\Components\Section::make('Sélection des agents')
+                    ->description('Sélectionnez les agents pour ce pointage')
+                    ->schema([
+                        Select::make('users')
+                            ->relationship('users', 'name', function ($query, callable $get) {
+                                $availableAgents = $get('available_agents');
+                                $query = $query->where('users.role', 'agent');
+                                
+                                if (!empty($availableAgents)) {
+                                    $query->whereIn('users.id', $availableAgents);
+                                }
+                                
+                                return $query;
+                            })
+                            ->multiple()
+                            ->preload()
+                            ->searchable()
+                            ->required()
+                            ->label('Agents'),
                     ])
-                    ->required()
-                    ->searchable(),
-                Forms\Components\Textarea::make('commentaire')
-                    ->label('Commentaire')
-                    ->maxLength(500),
+                    ->collapsible(),
+                Forms\Components\Section::make('Informations du pointage')
+                    ->schema([
+                        DatePicker::make('date')
+                            ->required(),
+                        Toggle::make('is_jour_ferie')
+                            ->label('Jour férié')
+                            ->helperText('Cochez si c\'est un jour férié'),
+                        Select::make('status')
+                            ->options([
+                                'present' => 'Présent',
+                                'absent' => 'Absent',
+                                'malade' => 'Malade',
+                                'conge' => 'Congé',
+                                'retard' => 'Retard',
+                            ])
+                            ->required()
+                            ->live()
+                            ->default('present')
+                            ->searchable(),
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                TimePicker::make('heure_debut')
+                                    ->seconds(false)
+                                    ->required()
+                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
+                                TimePicker::make('heure_fin')
+                                    ->seconds(false)
+                                    ->required()
+                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
+                            ]),
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                TextInput::make('heures_travaillees')
+                                    ->label('Heures Travaillées')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->helperText('Calculé automatiquement'),
+                                TextInput::make('heures_supplementaires')
+                                    ->label('Heures Supplémentaires')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->helperText('Calculé automatiquement'),
+                                TextInput::make('coefficient')
+                                    ->label('Coefficient')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->helperText('Calculé automatiquement selon les plages horaires'),
+                            ]),
+                        Toggle::make('heures_supplementaires_approuvees')
+                            ->label('Approuver les heures supplémentaires')
+                            ->helperText('Cochez pour approuver les heures supplémentaires')
+                            ->visible(fn (callable $get) => $get('status') === 'present' || $get('status') === 'retard'),
+                        Forms\Components\Textarea::make('commentaire')
+                            ->label('Commentaire')
+                            ->maxLength(500),
+                    ])
+                    ->collapsible(),
             ]);
     }
 
