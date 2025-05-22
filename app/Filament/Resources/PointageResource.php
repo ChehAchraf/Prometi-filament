@@ -118,17 +118,24 @@ class PointageResource extends Resource
                     ->schema([
                         Forms\Components\Repeater::make('exceptions')
                             ->schema([
-                                Forms\Components\Select::make('agent_id')
-                                    ->label('Agent')
-                                    ->options(function () {
-                                        // Get all agents - we'll filter them in the frontend
-                                        return User::where('role', 'agent')
-                                            ->orderBy('name')
-                                            ->pluck('name', 'id')
-                                            ->toArray();
-                                    })
-                                    ->searchable()
-                                    ->required(),
+                                Select::make('agent_id')
+                                ->label('Agent')
+                                ->options(function (callable $get) {
+                                    $projectId = $get('../../project_id'); // ← مهم جدا: ../../ باش نخرج من repeater state
+
+                                    if (!$projectId) return [];
+
+                                    $project = \App\Models\Project::find($projectId);
+                                    if (!$project) return [];
+
+                                    return $project->users()
+                                        ->where('users.role', 'agent')
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id')
+                                        ->toArray();
+                                })
+                                ->searchable()
+                                ->required(),
                                 Select::make('status')
                                     ->label('Statut')
                                     ->options([
