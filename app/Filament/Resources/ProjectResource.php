@@ -23,7 +23,7 @@ class ProjectResource extends Resource
     protected static ?string $model = Project::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office';
-    
+
     protected static ?string $navigationGroup = 'Gestion des Projets';
 
     public static function form(Form $form): Form
@@ -77,6 +77,7 @@ class ProjectResource extends Resource
                 TextColumn::make('status')
                     ->searchable(),
                 TextColumn::make('chef_de_chantier.name')
+                    ->label('Chef de chantier')
                     ->searchable(),
             ])
             ->filters([

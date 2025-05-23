@@ -18,20 +18,20 @@ class Project extends Model
         'end_date',
     ];
 
-    public function chefDeChantier()
+    public function chef_de_chantier()
     {
         return $this->belongsTo(User::class, 'chef_de_chantier_id');
     }
-    
+
     /**
      * Get the users assigned to this project
      */
     public function users()
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-                    ->select(['users.id as id', 'users.name', 'users.email', 'users.role']);
+            ->select(['users.id as id', 'users.name', 'users.email', 'users.role']);
     }
-    
+
     /**
      * Get the pointages for this project
      */
@@ -39,5 +39,4 @@ class Project extends Model
     {
         return $this->hasMany(Pointage::class);
     }
-    
 }
