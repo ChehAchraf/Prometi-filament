@@ -10,6 +10,12 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class PointageStatsWidget extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->role !== 'rh';
+    }
+
     protected function getStats(): array
     {
         // Get the current month's data

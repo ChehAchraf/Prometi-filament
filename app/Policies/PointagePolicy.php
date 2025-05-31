@@ -13,10 +13,14 @@ class PointagePolicy
      */
     public function viewAny(User $user): bool
     {
-        // All roles can view pointages, but they will be filtered based on their role
-        return $user->isAdmin() || $user->isRh() || $user->isChefDeChantier() || 
-               $user->isMagasinier() || $user->isChefDeProjet() || $user->isDirecteurTechnique() || 
-               $user->isAgent();
+        // RH users should not be able to view pointages
+        if ($user->isRh()) {
+            return false;
+        }
+        
+        // All other roles can view pointages, but they will be filtered based on their role
+        return $user->isAdmin() || $user->isChefDeChantier() || 
+               $user->isMagasinier() || $user->isChefDeProjet() || $user->isDirecteurTechnique();
     }
 
     /**
@@ -30,9 +34,9 @@ class PointagePolicy
         }
         
         // RH can view all pointages
-        if ($user->isRh()) {
-            return true;
-        }
+        // if ($user->isRh()) {
+        //     return true;
+        // }
         
         // Chef de chantier can view pointages for their projects
         if ($user->isChefDeChantier()) {

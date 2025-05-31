@@ -45,6 +45,11 @@ class CreatePointage extends CreateRecord
             $data['heure_fin'] = $data['default_heure_fin'];
         }
         
+        // Make sure heures_supplementaires_approuvees is handled
+        if (!isset($data['heures_supplementaires_approuvees'])) {
+            $data['heures_supplementaires_approuvees'] = false;
+        }
+        
         // Remove fields that aren't in the Pointage model
         unset($data['default_agents']);
         unset($data['default_status']);
@@ -90,6 +95,7 @@ class CreatePointage extends CreateRecord
                 'heure_fin' => in_array($exception['status'], ['present', 'retard']) ? $exception['heure_fin'] : null,
                 'commentaire' => $exception['commentaire'] ?? $record->commentaire,
                 'user_id' => $userId, // For backward compatibility
+                'heures_supplementaires_approuvees' => $record->heures_supplementaires_approuvees,
             ]);
             
             $newPointage->save();

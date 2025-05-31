@@ -31,6 +31,12 @@ class PointageResource extends Resource
     
     protected static ?string $navigationGroup = 'Gestion du Pointage';
     
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->role !== 'rh';
+    }
+
     // Override the create method to handle the many-to-many relationship
     public static function getEloquentQuery(): Builder
     {
@@ -112,6 +118,10 @@ class PointageResource extends Resource
                                     ->required()
                                     ->visible(fn (callable $get) => $get('default_status') !== 'absent' && $get('default_status') !== 'conge' && $get('default_status') !== 'malade'),
                             ]),
+                        Toggle::make('heures_supplementaires_approuvees')
+                            ->label('Approuver automatiquement les heures supplémentaires')
+                            ->helperText('Cochez pour approuver automatiquement les heures supplémentaires')
+                            ->default(false),
                     ]),
                 Forms\Components\Section::make('Exceptions')
                     ->description('Agents avec des paramètres différents (optionnel)')

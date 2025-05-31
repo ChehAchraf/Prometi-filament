@@ -13,8 +13,7 @@ class ProjectPolicy
      */
     public function viewAny(User $user): bool
     {
-        // All roles can view projects, but they will be filtered based on their role
-        return true;
+        return $user->isAdmin() || $user->isDirecteurTechnique();
     }
 
     /**
@@ -23,7 +22,7 @@ class ProjectPolicy
     public function view(User $user, Project $project): bool
     {
         // Admin, RH, and Directeur Technique can view all projects
-        if ($user->isAdmin() || $user->isRh() || $user->isDirecteurTechnique()) {
+        if ($user->isAdmin() || $user->isDirecteurTechnique()) {
             return true;
         }
         
@@ -56,7 +55,7 @@ class ProjectPolicy
     public function create(User $user): bool
     {
         // Only Admin and RH can create projects
-        return $user->isAdmin() || $user->isRh();
+        return $user->isAdmin() ;
     }
 
     /**
@@ -65,7 +64,7 @@ class ProjectPolicy
     public function update(User $user, Project $project): bool
     {
         // Admin and RH can update any project
-        if ($user->isAdmin() || $user->isRh()) {
+        if ($user->isAdmin() ) {
             return true;
         }
         
@@ -83,7 +82,7 @@ class ProjectPolicy
     public function delete(User $user, Project $project): bool
     {
         // Only Admin and RH can delete projects
-        return $user->isAdmin() || $user->isRh();
+        return $user->isAdmin() ;
     }
 
     /**
@@ -92,7 +91,7 @@ class ProjectPolicy
     public function restore(User $user, Project $project): bool
     {
         // Only Admin and RH can restore projects
-        return $user->isAdmin() || $user->isRh();
+        return $user->isAdmin() ;
     }
 
     /**
