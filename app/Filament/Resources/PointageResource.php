@@ -56,17 +56,34 @@ class PointageResource extends Resource
                     ->live()
                     ->afterStateUpdated(function ($state, callable $set) {
                         if ($state) {
-                            // Get all agents attached to the selected project
+                            // Get agents attached to the selected project
                             $project = Project::find($state);
                             if ($project) {
-                                // Get agent IDs attached to this project
-                                $agentIds = $project->users()
+                                $agentItems = [];
+                                
+                                // Format time strings instead of DateTime objects
+                                $defaultStartTime = '08:00';
+                                $defaultEndTime = '17:00';
+                                
+                                // Get agents attached to the project
+                                $agents = $project->users()
                                     ->where('users.role', 'agent')
-                                    ->pluck('users.id')
-                                    ->toArray();
+                                    ->get();
                                     
-                                // Automatically select all agents
-                                $set('default_agents', $agentIds);
+                                foreach ($agents as $agent) {
+                                    $agentItems[] = [
+                                        'agent_id' => $agent->id,
+                                        'agent_name' => $agent->name,
+                                        'status' => 'present',
+                                        'heure_debut' => $defaultStartTime,
+                                        'heure_fin' => $defaultEndTime,
+                                        'commentaire' => '',
+                                    ];
+                                }
+                                
+                                $set('agents_table', $agentItems);
+                            } else {
+                                $set('agents_table', []);
                             }
                         }
                     }),
@@ -75,77 +92,17 @@ class PointageResource extends Resource
                 Toggle::make('is_jour_ferie')
                     ->label('Jour férié')
                     ->helperText('Cochez si c\'est un jour férié'),
-                Forms\Components\Section::make('Paramètres par défaut')
-                    ->description('Paramètres appliqués à tous les agents sélectionnés')
+                Forms\Components\Section::make('Agents du projet')
+                    ->description('Gérer le pointage pour tous les agents du projet')
                     ->schema([
-                        Select::make('default_agents')
-                            ->label('Agents')
-                            ->multiple()
-                            ->relationship('users', 'name', function (Builder $query, callable $get) {
-                                $projectId = $get('../../project_id');
-                                if ($projectId) {
-                                    return $query->whereHas('projects', function (Builder $query) use ($projectId) {
-                                        $query->where('projects.id', $projectId);
-                                    })->where('users.role', 'agent');
-                                }
-                                return $query->where('users.role', 'agent');
-                            })
-                            ->searchable()
-                            ->preload()
-                            ->required(),
-                        Select::make('default_status')
-                            ->label('Statut par défaut')
-                            ->options([
-                                'present' => 'Présent',
-                                'absent' => 'Absent',
-                                'malade' => 'Malade',
-                                'conge' => 'Congé',
-                                'retard' => 'Retard',
-                            ])
-                            ->default('present')
-                            ->required()
-                            ->live(),
-                        Forms\Components\Grid::make(2)
+                        Forms\Components\Repeater::make('agents_table')
+                            ->label('Tableau des agents')
                             ->schema([
-                                TimePicker::make('default_heure_debut')
-                                    ->label('Heure de début par défaut')
-                                    ->seconds(false)
-                                    ->required()
-                                    ->visible(fn (callable $get) => $get('default_status') !== 'absent' && $get('default_status') !== 'conge' && $get('default_status') !== 'malade'),
-                                TimePicker::make('default_heure_fin')
-                                    ->label('Heure de fin par défaut')
-                                    ->seconds(false)
-                                    ->required()
-                                    ->visible(fn (callable $get) => $get('default_status') !== 'absent' && $get('default_status') !== 'conge' && $get('default_status') !== 'malade'),
-                            ]),
-                        Toggle::make('heures_supplementaires_approuvees')
-                            ->label('Approuver automatiquement les heures supplémentaires')
-                            ->helperText('Cochez pour approuver automatiquement les heures supplémentaires')
-                            ->default(false),
-                    ]),
-                Forms\Components\Section::make('Exceptions')
-                    ->description('Agents avec des paramètres différents (optionnel)')
-                    ->schema([
-                        Forms\Components\Repeater::make('exceptions')
-                            ->schema([
-                                Select::make('agent_id')
-                                ->label('Agent')
-                                ->options(function (callable $get) {
-                                    $projectId = $get('../../project_id'); // ← مهم جدا: ../../ باش نخرج من repeater state
-
-                                    if (!$projectId) return [];
-
-                                    $project = \App\Models\Project::find($projectId);
-                                    if (!$project) return [];
-
-                                    return $project->users()
-                                        ->where('users.role', 'agent')
-                                        ->orderBy('name')
-                                        ->pluck('name', 'id')
-                                        ->toArray();
-                                })
-                                ->searchable()
-                                ->required(),
+                                Forms\Components\Hidden::make('agent_id'),
+                                Forms\Components\TextInput::make('agent_name')
+                                    ->label('Agent')
+                                    ->disabled()
+                                    ->columnSpan(1),
                                 Select::make('status')
                                     ->label('Statut')
                                     ->options([
@@ -155,33 +112,42 @@ class PointageResource extends Resource
                                         'conge' => 'Congé',
                                         'retard' => 'Retard',
                                     ])
+                                    ->default('present')
                                     ->required()
-                                    ->live(),
-                                Forms\Components\Grid::make(2)
-                                    ->schema([
-                                        TimePicker::make('heure_debut')
-                                            ->label('Heure de début')
-                                            ->seconds(false)
-                                            ->required()
-                                            ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
-                                        TimePicker::make('heure_fin')
-                                            ->label('Heure de fin')
-                                            ->seconds(false)
-                                            ->required()
-                                            ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade'),
-                                    ]),
-                                Forms\Components\Textarea::make('commentaire')
-                                    ->label('Commentaire spécifique')
-                                    ->maxLength(255),
+                                    ->live()
+                                    ->columnSpan(1),
+                                TimePicker::make('heure_debut')
+                                    ->label('Heure de début')
+                                    ->seconds(false)
+                                    ->required()
+                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade')
+                                    ->columnSpan(1),
+                                TimePicker::make('heure_fin')
+                                    ->label('Heure de fin')
+                                    ->seconds(false)
+                                    ->required()
+                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade')
+                                    ->columnSpan(1),
+                                Forms\Components\TextInput::make('commentaire')
+                                    ->label('Commentaire')
+                                    ->maxLength(255)
+                                    ->columnSpan(1),
                             ])
-                            ->columns(1)
-                            ->itemLabel(fn (array $state): ?string => User::find($state['agent_id'])?->name ?? 'Agent')
-                            ->collapsible()
-                            ->collapsed()
-                            ->defaultItems(0),
-                    ])
-                    ->collapsible()
-                    ->collapsed(),
+                            ->columns([
+                                'default' => 1,
+                                'sm' => 2,
+                                'md' => 3,
+                                'lg' => 5,
+                            ])
+                            ->itemLabel(fn (array $state): ?string => $state['agent_name'] ?? 'Agent')
+                            ->collapsible(false)
+                            ->defaultItems(0)
+                            ->live(),
+                    ]),
+                Toggle::make('heures_supplementaires_approuvees')
+                    ->label('Approuver automatiquement les heures supplémentaires')
+                    ->helperText('Cochez pour approuver automatiquement les heures supplémentaires')
+                    ->default(false),
                 Forms\Components\Section::make('Commentaire général')
                     ->schema([
                         Forms\Components\Textarea::make('commentaire')

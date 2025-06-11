@@ -14,35 +14,14 @@ class CreatePointage extends CreateRecord
     // This method runs before the record is created
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Extract default agents and exceptions data
-        $defaultAgents = $data['default_agents'] ?? [];
-        $exceptions = $data['exceptions'] ?? [];
+        // Extract agents data from table
+        $agentsTable = $data['agents_table'] ?? [];
         
-        // Create a map of exception agents by ID for easy lookup
-        $exceptionAgentIds = [];
-        foreach ($exceptions as $exception) {
-            $exceptionAgentIds[] = $exception['agent_id'];
-        }
-        
-        // For backward compatibility, set user_id to the first default agent if available
-        if (!empty($defaultAgents)) {
-            $data['user_id'] = $defaultAgents[0];
+        // For backward compatibility, set user_id to the first agent if available
+        if (!empty($agentsTable)) {
+            $data['user_id'] = $agentsTable[0]['agent_id'];
         } else {
             $data['user_id'] = 1; // Default user ID
-        }
-        
-        // Set status from default_status
-        if (isset($data['default_status'])) {
-            $data['status'] = $data['default_status'];
-        }
-        
-        // Set time fields from default values
-        if (isset($data['default_heure_debut'])) {
-            $data['heure_debut'] = $data['default_heure_debut'];
-        }
-        
-        if (isset($data['default_heure_fin'])) {
-            $data['heure_fin'] = $data['default_heure_fin'];
         }
         
         // Make sure heures_supplementaires_approuvees is handled
@@ -50,12 +29,28 @@ class CreatePointage extends CreateRecord
             $data['heures_supplementaires_approuvees'] = false;
         }
         
+        // Use the first present agent's time data for the main pointage record
+        $presentAgent = null;
+        foreach ($agentsTable as $agent) {
+            if ($agent['status'] === 'present' || $agent['status'] === 'retard') {
+                $presentAgent = $agent;
+                break;
+            }
+        }
+        
+        if ($presentAgent) {
+            $data['status'] = $presentAgent['status'];
+            $data['heure_debut'] = $presentAgent['heure_debut'];
+            $data['heure_fin'] = $presentAgent['heure_fin'];
+        } else {
+            // Default values if no present agent
+            $data['status'] = 'absent';
+            $data['heure_debut'] = null;
+            $data['heure_fin'] = null;
+        }
+        
         // Remove fields that aren't in the Pointage model
-        unset($data['default_agents']);
-        unset($data['default_status']);
-        unset($data['default_heure_debut']);
-        unset($data['default_heure_fin']);
-        unset($data['exceptions']);
+        unset($data['agents_table']);
         
         return $data;
     }
@@ -65,35 +60,33 @@ class CreatePointage extends CreateRecord
         // Get the created record
         $record = $this->record;
         
-        // Get the default agents and exceptions data from the form
-        $defaultAgents = $this->data['default_agents'] ?? [];
-        $exceptions = $this->data['exceptions'] ?? [];
+        // Get the agents data from the form
+        $agentsTable = $this->data['agents_table'] ?? [];
         
-        // Map exception agents by ID for easy lookup
-        $exceptionAgentIds = [];
-        foreach ($exceptions as $exception) {
-            $exceptionAgentIds[] = $exception['agent_id'];
-        }
-        
-        // Get the default agents that don't have exceptions
-        $defaultAgentsWithoutExceptions = array_diff($defaultAgents, $exceptionAgentIds);
-        
-        // Sync the default agents (without exceptions) with the main pointage record
-        $record->users()->sync($defaultAgentsWithoutExceptions);
-        
-        // Process exceptions - create separate pointage records for each
-        foreach ($exceptions as $exception) {
-            $userId = $exception['agent_id'];
+        // Process each agent from the table
+        foreach ($agentsTable as $agent) {
+            $userId = $agent['agent_id'];
+            
+            // Skip the first present agent that was used for the main record
+            if ($userId == $record->user_id && 
+                ($agent['status'] === 'present' || $agent['status'] === 'retard') &&
+                $agent['heure_debut'] == $record->heure_debut &&
+                $agent['heure_fin'] == $record->heure_fin) {
+                
+                // Attach this user to the main pointage record
+                $record->users()->attach($userId);
+                continue;
+            }
             
             // Create a new pointage record for this agent with their specific data
             $newPointage = new Pointage([
                 'project_id' => $record->project_id,
                 'date' => $record->date,
                 'is_jour_ferie' => $record->is_jour_ferie,
-                'status' => $exception['status'],
-                'heure_debut' => in_array($exception['status'], ['present', 'retard']) ? $exception['heure_debut'] : null,
-                'heure_fin' => in_array($exception['status'], ['present', 'retard']) ? $exception['heure_fin'] : null,
-                'commentaire' => $exception['commentaire'] ?? $record->commentaire,
+                'status' => $agent['status'],
+                'heure_debut' => in_array($agent['status'], ['present', 'retard']) ? $agent['heure_debut'] : null,
+                'heure_fin' => in_array($agent['status'], ['present', 'retard']) ? $agent['heure_fin'] : null,
+                'commentaire' => $agent['commentaire'] ?? $record->commentaire,
                 'user_id' => $userId, // For backward compatibility
                 'heures_supplementaires_approuvees' => $record->heures_supplementaires_approuvees,
             ]);
