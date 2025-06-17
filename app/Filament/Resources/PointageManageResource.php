@@ -17,6 +17,8 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
@@ -172,26 +174,38 @@ class PointageManageResource extends Resource
             ->columns([
                 TextColumn::make('user.name')
                     ->label('Agent')
+                    ->formatStateUsing(function ($state, $record) {
+                        $user = $record->user;
+                        if (!$user) {
+                            return '-';
+                        }
+                        
+                        return $user->name;
+                    })
+                    ->html()
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('project.name')
                     ->label('Projet')
-                    ->searchable()
-                    ->sortable(),
+                    ->searchable(),
                 TextColumn::make('date')
                     ->label('Date')
                     ->date()
-                    ->sortable(),
+                    ->sortable()
+                    ->searchable(),
+                IconColumn::make('is_jour_ferie')
+                    ->label('Jour Férié')
+                    ->boolean(),
                 TextColumn::make('heure_debut')
-                    ->label('Heure début')
+                    ->label('Heure Début')
                     ->time()
-                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                    ->searchable(),
                 TextColumn::make('heure_fin')
-                    ->label('Heure fin')
+                    ->label('Heure Fin')
                     ->time()
-                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                    ->searchable(),
                 TextColumn::make('heures_travaillees')
-                    ->label('Heures travaillées')
+                    ->label('Heures Travaillées')
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
@@ -200,6 +214,25 @@ class PointageManageResource extends Resource
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
+                IconColumn::make('heures_supplementaires_approuvees')
+                    ->label('HS Approuvées')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('coefficient')
+                    ->label('Coef.')
+                    ->numeric(2)
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('weighted_hours')
+                    ->label('Heures Pondérées')
+                    ->getStateUsing(fn (Pointage $record): float => $record->getWeightedHoursAttribute())
+                    ->numeric(2)
+                    ->sortable(),
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()
@@ -218,10 +251,8 @@ class PointageManageResource extends Resource
                         'conge' => 'info',
                         'retard' => 'warning',
                         default => 'gray',
-                    }),
-                TextColumn::make('commentaire')
-                    ->label('Commentaire')
-                    ->limit(50),
+                    })
+                    ->searchable(),
             ])
             ->defaultSort('date', 'desc')
             ->filters([
@@ -237,27 +268,42 @@ class PointageManageResource extends Resource
                         'conge' => 'Congé',
                         'retard' => 'Retard',
                     ]),
-                Tables\Filters\Filter::make('date')
-                    ->form([
-                        Forms\Components\DatePicker::make('date_from')
-                            ->label('Du'),
-                        Forms\Components\DatePicker::make('date_to')
-                            ->label('Au'),
+                Tables\Filters\SelectFilter::make('date')
+                    ->label('Période')
+                    ->options([
+                        'today' => 'Aujourd\'hui',
+                        'week' => 'Cette semaine',
+                        'month' => 'Ce mois-ci',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['date_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '>=', $date),
-                            )
-                            ->when(
-                                $data['date_to'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
-                            );
+                        $query->when($data['value'] ?? null, function (Builder $query, $value) {
+                            if ($value === 'today') {
+                                $query->whereDate('date', today());
+                            } elseif ($value === 'week') {
+                                $query->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()]);
+                            } elseif ($value === 'month') {
+                                $query->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()]);
+                            }
+                        });
+                        return $query;
                     }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Action::make('approve_overtime')
+                    ->label('Approuver HS')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(fn (Pointage $record) => $record->approveOvertime(true))
+                    ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && !$record->heures_supplementaires_approuvees),
+                Action::make('disapprove_overtime')
+                    ->label('Désapprouver HS')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(fn (Pointage $record) => $record->approveOvertime(false))
+                    ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && $record->heures_supplementaires_approuvees),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

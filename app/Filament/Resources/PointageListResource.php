@@ -11,6 +11,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
 
 class PointageListResource extends Resource
@@ -82,13 +84,20 @@ class PointageListResource extends Resource
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
+                IconColumn::make('heures_supplementaires_approuvees')
+                    ->label('HS Approuvées')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('coefficient')
                     ->label('Coef.')
                     ->numeric(2)
-                    ->sortable(),
-                Tables\Columns\IconColumn::make('heures_supplementaires_approuvees')
-                    ->label('HS Approuvées')
-                    ->boolean(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('weighted_hours')
                     ->label('Heures Pondérées')
                     ->getStateUsing(fn (Pointage $record): float => $record->getWeightedHoursAttribute())
@@ -97,6 +106,14 @@ class PointageListResource extends Resource
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'present' => 'Présent',
+                        'absent' => 'Absent',
+                        'malade' => 'Malade',
+                        'conge' => 'Congé',
+                        'retard' => 'Retard',
+                        default => $state,
+                    })
                     ->color(fn (string $state): string => match ($state) {
                         'present' => 'success',
                         'absent' => 'danger',
@@ -111,26 +128,42 @@ class PointageListResource extends Resource
                 Tables\Filters\SelectFilter::make('project_id')
                     ->label('Projet')
                     ->relationship('project', 'name'),
-                Tables\Filters\Filter::make('date')
-                    ->form([
-                        Forms\Components\DatePicker::make('date_from')
-                            ->label('Du'),
-                        Forms\Components\DatePicker::make('date_to')
-                            ->label('Au'),
+                Tables\Filters\SelectFilter::make('date')
+                    ->label('Période')
+                    ->options([
+                        'today' => 'Aujourd\'hui',
+                        'week' => 'Cette semaine',
+                        'month' => 'Ce mois-ci',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['date_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '>=', $date),
-                            )
-                            ->when(
-                                $data['date_to'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
-                            );
+                        $query->when($data['value'] ?? null, function (Builder $query, $value) {
+                            if ($value === 'today') {
+                                $query->whereDate('date', today());
+                            } elseif ($value === 'week') {
+                                $query->whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()]);
+                            } elseif ($value === 'month') {
+                                $query->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()]);
+                            }
+                        });
+                        return $query;
                     }),
             ])
-            ->actions([])
+            ->actions([
+                Action::make('approve_overtime')
+                    ->label('Approuver HS')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(fn (Pointage $record) => $record->approveOvertime(true))
+                    ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && !$record->heures_supplementaires_approuvees),
+                Action::make('disapprove_overtime')
+                    ->label('Désapprouver HS')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(fn (Pointage $record) => $record->approveOvertime(false))
+                    ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && $record->heures_supplementaires_approuvees),
+            ])
             ->bulkActions([]);
     }
 
