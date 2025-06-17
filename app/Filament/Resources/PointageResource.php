@@ -94,6 +94,8 @@ class PointageResource extends Resource
                         }
                     }),
                 DatePicker::make('date')
+                    ->label('Date')
+                    ->default(now()->format('Y-m-d'))
                     ->required(),
                 Toggle::make('is_jour_ferie')
                     ->label('Jour férié')

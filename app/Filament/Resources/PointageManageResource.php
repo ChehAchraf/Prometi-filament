@@ -60,7 +60,7 @@ class PointageManageResource extends Resource
                                 $defaultEndTime = '17:00';
                                 
                                 $agents = $project->users()
-                                    ->where('users.role', 'agent')
+                                    ->whereIn('users.role', ['agent', 'colaborateur'])
                                     ->get();
                                     
                                 foreach ($agents as $agent) {
