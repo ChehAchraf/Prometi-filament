@@ -13,10 +13,7 @@ class PointagePolicy
      */
     public function viewAny(User $user): bool
     {
-        // RH users should not be able to view pointages
-        if ($user->isRh()) {
-            return false;
-        }
+        
         
         // All other roles can view pointages, but they will be filtered based on their role
         return $user->isAdmin() || $user->isChefDeChantier() || 

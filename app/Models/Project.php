@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class Project extends Model
 {
@@ -17,6 +18,17 @@ class Project extends Model
         'start_date',
         'end_date',
     ];
+
+    protected static function booted()
+    {
+        static::addGlobalScope('rh_projects', function (Builder $builder) {
+            if (auth()->check() && auth()->user()->role === 'rh') {
+                $builder->whereHas('users', function ($query) {
+                    $query->where('users.id', auth()->id());
+                });
+            }
+        });
+    }
 
     public function chef_de_chantier()
     {

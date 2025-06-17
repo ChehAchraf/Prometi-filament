@@ -27,7 +27,7 @@ class ProjectPolicy
         }
         
         // Chef de chantier can view projects they manage
-        if ($user->isChefDeChantier()) {
+        if ($user->isChefDeChantier() ) {
             return $project->chef_de_chantier_id === $user->id;
         }
         
@@ -55,7 +55,7 @@ class ProjectPolicy
     public function create(User $user): bool
     {
         // Only Admin and RH can create projects
-        return $user->isAdmin() ;
+        return $user->isAdmin() || $user->isRh();
     }
 
     /**
@@ -64,7 +64,7 @@ class ProjectPolicy
     public function update(User $user, Project $project): bool
     {
         // Admin and RH can update any project
-        if ($user->isAdmin() ) {
+        if ($user->isAdmin() || $user->isRh()) {
             return true;
         }
         
@@ -82,7 +82,7 @@ class ProjectPolicy
     public function delete(User $user, Project $project): bool
     {
         // Only Admin and RH can delete projects
-        return $user->isAdmin() ;
+        return $user->isAdmin() || $user->isRh();
     }
 
     /**
@@ -91,7 +91,7 @@ class ProjectPolicy
     public function restore(User $user, Project $project): bool
     {
         // Only Admin and RH can restore projects
-        return $user->isAdmin() ;
+        return $user->isAdmin() || $user->isRh();
     }
 
     /**
@@ -100,6 +100,6 @@ class ProjectPolicy
     public function forceDelete(User $user, Project $project): bool
     {
         // Only Admin can permanently delete projects
-        return $user->isAdmin();
+        return $user->isAdmin() || $user->isRh();
     }
 }
