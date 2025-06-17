@@ -47,6 +47,13 @@ class UserResource extends Resource
                 TextInput::make('city')
                     ->required()
                     ->maxLength(255),
+                TextInput::make('matricule')
+                    ->required()
+                    ->unique()
+                    ->maxLength(255),
+                TextInput::make('fonction')
+                    ->required()
+                    ->maxLength(255),
                 Select::make('role')
                     ->options([
                         'admin' => 'Admin (SuperAdmin)',
@@ -55,7 +62,7 @@ class UserResource extends Resource
                         'magasinier' => 'Magasinier (Éditeur de pointage)',
                         'chef_de_projet' => 'Chef de projet (Visualisateur)',
                         'directeur_technique' => 'Directeur technique (Visualisateur)',
-                        'agent' => 'Agent'
+                        'colaborateur' => 'Colaborateur'
                     ])
                     ->required()
                     ->searchable(),
@@ -65,7 +72,9 @@ class UserResource extends Resource
                         'conge' => 'En congé',
                         'mission' => 'En mission',
                         'absent' => 'Absent',
-                        'malade' => 'Malade'
+                        'malade' => 'Malade',
+                        'accident_de_travail' => 'Accident de travail',
+                        'retraite' => 'Retraité',
                     ])
                     ->default('actif')
                     ->required(),

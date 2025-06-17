@@ -13,7 +13,7 @@ class ProjectPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isAdmin() || $user->isDirecteurTechnique();
+        return $user->isAdmin() || $user->isDirecteurTechnique() || $user->isRh();
     }
 
     /**
@@ -22,7 +22,7 @@ class ProjectPolicy
     public function view(User $user, Project $project): bool
     {
         // Admin, RH, and Directeur Technique can view all projects
-        if ($user->isAdmin() || $user->isDirecteurTechnique()) {
+        if ($user->isAdmin() || $user->isDirecteurTechnique() || $user->isRh()) {
             return true;
         }
         
