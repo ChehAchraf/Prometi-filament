@@ -21,6 +21,12 @@ class ReportingPage extends Page implements HasForms
     protected static ?int $navigationSort = -1;
     protected static ?string $title = 'Rapports de pointage';
     protected static ?string $slug = 'reporting';
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->role !== 'rh';
+    }
     
     public $startDate;
     public $endDate;
