@@ -2,8 +2,7 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\PointageResource\Pages;
-use App\Filament\Resources\PointageResource\RelationManagers;
+use App\Filament\Resources\PointageManageResource\Pages;
 use App\Models\Pointage;
 use App\Models\Project;
 use App\Models\User;
@@ -16,14 +15,11 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Support\Collection;
 
-class PointageResource extends Resource
+class PointageManageResource extends Resource
 {
     protected static ?string $model = Pointage::class;
 
@@ -31,26 +27,21 @@ class PointageResource extends Resource
     
     protected static ?string $navigationGroup = 'Pointage';
     
-    protected static ?string $navigationLabel = 'Pointage';
+    protected static ?string $navigationLabel = 'Create Pointage';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 2;
 
-    protected static bool $shouldRegisterNavigation = false;
-    
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        return $user && $user->role !== 'rh';
+        return $user && in_array($user->role, ['admin', 'rh', 'chef_de_chantier', 'chef_de_projet', 'directeur_technique']);
     }
 
-    // Override the create method to handle the many-to-many relationship
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->with('users');
     }
 
-    // No longer needed as we'll use Filament's hooks instead
-    
     public static function form(Form $form): Form
     {
         return $form
@@ -62,16 +53,12 @@ class PointageResource extends Resource
                     ->live()
                     ->afterStateUpdated(function ($state, callable $set) {
                         if ($state) {
-                            // Get agents attached to the selected project
                             $project = Project::find($state);
                             if ($project) {
                                 $agentItems = [];
-                                
-                                // Format time strings instead of DateTime objects
                                 $defaultStartTime = '08:00';
                                 $defaultEndTime = '17:00';
                                 
-                                // Get agents attached to the project
                                 $agents = $project->users()
                                     ->where('users.role', 'agent')
                                     ->get();
@@ -256,80 +243,15 @@ class PointageResource extends Resource
                                 fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
                             );
                     }),
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'present' => 'Présent',
-                        'absent' => 'Absent',
-                        'malade' => 'Malade',
-                        'conge' => 'Congé',
-                        'retard' => 'Retard',
-                    ]),
-                Tables\Filters\TernaryFilter::make('is_jour_ferie')
-                    ->label('Jour férié'),
-                Tables\Filters\TernaryFilter::make('heures_supplementaires_approuvees')
-                    ->label('HS Approuvées'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('approveOvertime')
-                    ->label('Approuver HS')
-                    ->icon('heroicon-o-check')
-                    ->color('success')
-                    ->action(function (Pointage $record) {
-                        $record->approveOvertime(true);
-                        $record->save();
-                    })
-                    ->requiresConfirmation()
-                    ->hidden(fn (Pointage $record) => $record->heures_supplementaires_approuvees || $record->heures_supplementaires <= 0),
-                Tables\Actions\Action::make('rejectOvertime')
-                    ->label('Refuser HS')
-                    ->icon('heroicon-o-x-mark')
-                    ->color('danger')
-                    ->action(function (Pointage $record) {
-                        $record->approveOvertime(false);
-                        $record->save();
-                    })
-                    ->requiresConfirmation()
-                    ->hidden(fn (Pointage $record) => !$record->heures_supplementaires_approuvees || $record->heures_supplementaires <= 0),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('approveBulkOvertime')
-                        ->label('Approuver HS en masse')
-                        ->icon('heroicon-o-check')
-                        ->action(function (Collection $records) {
-                            $records->each(function (Pointage $record) {
-                                if ($record->heures_supplementaires > 0) {
-                                    $record->approveOvertime(true);
-                                    $record->save();
-                                }
-                            });
-                        })
-                        ->requiresConfirmation()
-                        ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('exportToExcel')
-                        ->label('Exporter en Excel')
-                        ->icon('heroicon-o-document-arrow-down')
-                        ->action(function (Collection $records) {
-                            return response()->streamDownload(function () use ($records) {
-                                echo "Date,Projet,Agents,Heures Travaillées,Heures Supplémentaires,Coefficient,Heures Pondérées,Statut\n";
-                                
-                                foreach ($records as $record) {
-                                    $agents = $record->users->pluck('name')->implode(', ');
-                                    echo "{$record->date},{$record->project->name},\"{$agents}\",{$record->heures_travaillees},{$record->heures_supplementaires},{$record->coefficient},{$record->getWeightedHoursAttribute()},{$record->status}\n";
-                                }
-                            }, 'pointages-' . now()->format('Y-m-d') . '.csv');
-                        }),
                 ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            RelationManagers\UsersRelationManager::class,
-        ];
     }
 
     public static function getPages(): array
@@ -337,7 +259,6 @@ class PointageResource extends Resource
         return [
             'index' => Pages\ListPointages::route('/'),
             'create' => Pages\CreatePointage::route('/create'),
-            'edit' => Pages\EditPointage::route('/{record}/edit'),
         ];
     }
-}
+} 
