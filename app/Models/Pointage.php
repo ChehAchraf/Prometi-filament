@@ -54,22 +54,35 @@ class Pointage extends Model
     public function calculateHoursWorked()
     {
         if ($this->heure_debut && $this->heure_fin) {
-            $debut = new \DateTime($this->heure_debut);
-            $fin = new \DateTime($this->heure_fin);
-            
-            // If end time is before start time, assume it's the next day
-            if ($fin < $debut) {
-                $fin->modify('+1 day');
+            // Attributes are Carbon instances due to the $casts property
+            $start = $this->heure_debut;
+            $end = $this->heure_fin;
+
+            // If end time is before start time, it's the next day
+            if ($end->lt($start)) {
+                $end->addDay();
             }
-            
-            $interval = $debut->diff($fin);
-            $hours = $interval->h + ($interval->i / 60);
-            
-            $this->heures_travaillees = round($hours, 2);
+
+            // Raw total hours
+            $totalHours = $end->floatDiffInHours($start);
+
+            // Define lunch break
+            $lunchStart = $start->copy()->setTime(12, 0, 0);
+            $lunchEnd = $start->copy()->setTime(13, 0, 0);
+
+            // Deduct lunch break if it overlaps
+            if ($start < $lunchEnd && $end > $lunchStart) {
+                $overlapStart = $start->max($lunchStart);
+                $overlapEnd = $end->min($lunchEnd);
+                $overlapDuration = $overlapEnd->floatDiffInHours($overlapStart);
+                $totalHours -= min($overlapDuration, 1.0);
+            }
+
+            $this->heures_travaillees = round(max(0, $totalHours), 2);
             $this->calculateOvertime();
             $this->calculateCoefficient();
         }
-        
+
         return $this;
     }
     
