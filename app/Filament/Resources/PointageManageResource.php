@@ -18,6 +18,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 
 class PointageManageResource extends Resource
 {
@@ -39,7 +40,7 @@ class PointageManageResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('users');
+        return parent::getEloquentQuery()->with('user');
     }
 
     public static function form(Form $form): Form
@@ -60,7 +61,10 @@ class PointageManageResource extends Resource
                                 $defaultEndTime = '17:00';
                                 
                                 $agents = $project->users()
-                                    ->whereIn('users.role', ['agent', 'colaborateur'])
+                                    ->where(function ($query) {
+                                        $query->whereRaw('LOWER(users.role) = ?', ['agent'])
+                                              ->orWhereRaw('LOWER(users.role) = ?', ['colaborateur']);
+                                    })
                                     ->get();
                                     
                                 foreach ($agents as $agent) {
@@ -70,6 +74,7 @@ class PointageManageResource extends Resource
                                         'status' => 'present',
                                         'heure_debut' => $defaultStartTime,
                                         'heure_fin' => $defaultEndTime,
+                                        'total_hours' => 8,
                                         'commentaire' => '',
                                     ];
                                 }
@@ -81,7 +86,8 @@ class PointageManageResource extends Resource
                         }
                     }),
                 DatePicker::make('date')
-                    ->required(),
+                    ->required()
+                    ->default(now()),
                 Toggle::make('is_jour_ferie')
                     ->label('Jour férié')
                     ->helperText('Cochez si c\'est un jour férié'),
@@ -91,7 +97,8 @@ class PointageManageResource extends Resource
                         Forms\Components\Repeater::make('agents_table')
                             ->label('Tableau des agents')
                             ->schema([
-                                Forms\Components\Hidden::make('agent_id'),
+                                Forms\Components\Hidden::make('agent_id')
+                                    ->required(),
                                 Forms\Components\TextInput::make('agent_name')
                                     ->label('Agent')
                                     ->disabled()
@@ -113,13 +120,28 @@ class PointageManageResource extends Resource
                                     ->label('Heure de début')
                                     ->seconds(false)
                                     ->required()
-                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade')
+                                    ->visible(fn (callable $get) => in_array($get('status'), ['present', 'retard']))
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        static::calculateTotalHours($state, $get('heure_fin'), $set);
+                                    })
                                     ->columnSpan(1),
                                 TimePicker::make('heure_fin')
                                     ->label('Heure de fin')
                                     ->seconds(false)
                                     ->required()
-                                    ->visible(fn (callable $get) => $get('status') !== 'absent' && $get('status') !== 'conge' && $get('status') !== 'malade')
+                                    ->visible(fn (callable $get) => in_array($get('status'), ['present', 'retard']))
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        static::calculateTotalHours($get('heure_debut'), $state, $set);
+                                    })
+                                    ->columnSpan(1),
+                                Forms\Components\TextInput::make('total_hours')
+                                    ->label('Heures totales')
+                                    ->disabled()
+                                    ->numeric()
+                                    ->default(8)
+                                    ->visible(fn (callable $get) => in_array($get('status'), ['present', 'retard']))
                                     ->columnSpan(1),
                                 Forms\Components\TextInput::make('commentaire')
                                     ->label('Commentaire')
@@ -141,13 +163,6 @@ class PointageManageResource extends Resource
                     ->label('Approuver automatiquement les heures supplémentaires')
                     ->helperText('Cochez pour approuver automatiquement les heures supplémentaires')
                     ->default(false),
-                Forms\Components\Section::make('Commentaire général')
-                    ->schema([
-                        Forms\Components\Textarea::make('commentaire')
-                            ->label('Commentaire')
-                            ->maxLength(500),
-                    ])
-                    ->collapsible(),
             ]);
     }
 
@@ -155,62 +170,29 @@ class PointageManageResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('users.name')
-                    ->label('Agents')
-                    ->formatStateUsing(function ($state, $record) {
-                        $users = $record->users;
-                        if ($users->isEmpty()) {
-                            return '-';
-                        }
-                        
-                        return $users->map(function ($user) {
-                            return "{$user->name}";
-                        })->implode(', ');
-                    })
-                    ->html()
-                    ->searchable(),
+                TextColumn::make('user.name')
+                    ->label('Agent')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('project.name')
                     ->label('Projet')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('date')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('date')
                     ->label('Date')
                     ->date()
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\IconColumn::make('is_jour_ferie')
-                    ->label('Jour Férié')
-                    ->boolean(),
-                Tables\Columns\TextColumn::make('heure_debut')
-                    ->label('Heure Début')
-                    ->time()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('heure_fin')
-                    ->label('Heure Fin')
-                    ->time()
-                    ->searchable(),
-                TextColumn::make('heures_travaillees')
-                    ->label('Heures Travaillées')
-                    ->numeric(2)
-                    ->sortable(),
-                TextColumn::make('heures_supplementaires')
-                    ->label('Heures Supp.')
-                    ->numeric(2)
-                    ->sortable(),
-                TextColumn::make('coefficient')
-                    ->label('Coef.')
-                    ->numeric(2)
-                    ->sortable(),
-                Tables\Columns\IconColumn::make('heures_supplementaires_approuvees')
-                    ->label('HS Approuvées')
-                    ->boolean(),
-                TextColumn::make('weighted_hours')
-                    ->label('Heures Pondérées')
-                    ->getStateUsing(fn (Pointage $record): float => $record->getWeightedHoursAttribute())
-                    ->numeric(2)
                     ->sortable(),
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'present' => 'Présent',
+                        'absent' => 'Absent',
+                        'malade' => 'Malade',
+                        'conge' => 'Congé',
+                        'retard' => 'Retard',
+                        default => $state,
+                    })
                     ->color(fn (string $state): string => match ($state) {
                         'present' => 'success',
                         'absent' => 'danger',
@@ -218,13 +200,37 @@ class PointageManageResource extends Resource
                         'conge' => 'info',
                         'retard' => 'warning',
                         default => 'gray',
-                    })
-                    ->searchable(),
+                    }),
+                TextColumn::make('heure_debut')
+                    ->label('Heure début')
+                    ->time()
+                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                TextColumn::make('heure_fin')
+                    ->label('Heure fin')
+                    ->time()
+                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                TextColumn::make('heures_travaillees')
+                    ->label('Heures travaillées')
+                    ->numeric(2)
+                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                TextColumn::make('commentaire')
+                    ->label('Commentaire')
+                    ->limit(50),
             ])
+            ->defaultSort('date', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('project_id')
                     ->label('Projet')
                     ->relationship('project', 'name'),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Statut')
+                    ->options([
+                        'present' => 'Présent',
+                        'absent' => 'Absent',
+                        'malade' => 'Malade',
+                        'conge' => 'Congé',
+                        'retard' => 'Retard',
+                    ]),
                 Tables\Filters\Filter::make('date')
                     ->form([
                         Forms\Components\DatePicker::make('date_from')
@@ -260,5 +266,35 @@ class PointageManageResource extends Resource
             'index' => Pages\ListPointages::route('/'),
             'create' => Pages\CreatePointage::route('/create'),
         ];
+    }
+
+    protected static function calculateTotalHours($startTime, $endTime, callable $set): void
+    {
+        if (!$startTime || !$endTime) {
+            $set('total_hours', 0);
+            return;
+        }
+
+        $start = \Carbon\Carbon::parse($startTime);
+        $end = \Carbon\Carbon::parse($endTime);
+        
+        // If end time is before start time, assume it's the next day
+        if ($end->lt($start)) {
+            $end->addDay();
+        }
+
+        // Calculate total hours
+        $totalHours = $end->floatDiffInHours($start);
+
+        // Check if working period overlaps lunch break (12:00-13:00)
+        $lunchStart = \Carbon\Carbon::parse($start->format('Y-m-d') . ' 12:00');
+        $lunchEnd = \Carbon\Carbon::parse($start->format('Y-m-d') . ' 13:00');
+
+        if ($start->lt($lunchEnd) && $end->gt($lunchStart)) {
+            // Working period overlaps lunch break, deduct 1 hour
+            $totalHours -= 1;
+        }
+
+        $set('total_hours', round($totalHours, 2));
     }
 } 

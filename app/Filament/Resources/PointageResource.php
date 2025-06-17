@@ -46,7 +46,7 @@ class PointageResource extends Resource
     // Override the create method to handle the many-to-many relationship
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('users');
+        return parent::getEloquentQuery()->with('user');
     }
 
     // No longer needed as we'll use Filament's hooks instead
@@ -73,7 +73,7 @@ class PointageResource extends Resource
                                 
                                 // Get agents attached to the project
                                 $agents = $project->users()
-                                    ->where('users.role', 'agent')
+                                    ->whereRaw('LOWER(users.role) = ?', ['agent'])
                                     ->get();
                                     
                                 foreach ($agents as $agent) {
@@ -150,7 +150,8 @@ class PointageResource extends Resource
                             ->itemLabel(fn (array $state): ?string => $state['agent_name'] ?? 'Agent')
                             ->collapsible(false)
                             ->defaultItems(0)
-                            ->live(),
+                            ->required()
+                        ->live(),
                     ]),
                 Toggle::make('heures_supplementaires_approuvees')
                     ->label('Approuver automatiquement les heures supplémentaires')

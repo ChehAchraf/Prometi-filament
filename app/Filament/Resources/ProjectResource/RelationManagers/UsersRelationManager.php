@@ -44,7 +44,7 @@ class UsersRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('name')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('role', 'agent'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->whereRaw('LOWER(role) = ?', ['agent']))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
@@ -92,7 +92,7 @@ class UsersRelationManager extends RelationManager
                 Tables\Actions\AttachAction::make()
                     ->preloadRecordSelect()
                     ->recordSelectSearchColumns(['name', 'email'])
-                    ->recordSelectOptionsQuery(fn (Builder $query) => $query->where('role', 'agent'))
+                    ->recordSelectOptionsQuery(fn (Builder $query) => $query->whereRaw('LOWER(role) = ?', ['agent']))
                     ->form(fn (Tables\Actions\AttachAction $action): array => [
                         $action->getRecordSelect(),
                     ]),

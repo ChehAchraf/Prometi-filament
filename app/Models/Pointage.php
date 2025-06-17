@@ -32,10 +32,14 @@ class Pointage extends Model
         'is_jour_ferie' => 'boolean',
     ];
 
-    public function users()
+    public function agents()
     {
-        return $this->belongsToMany(User::class, 'pointage_user', 'pointage_id', 'user_id')
-                    ->select(['users.id as id', 'users.name', 'users.email', 'users.role']);
+        return $this->belongsToMany(User::class, 'pointage_user', 'pointage_id', 'user_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function project()
