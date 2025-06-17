@@ -182,6 +182,24 @@ class PointageManageResource extends Resource
                     ->label('Date')
                     ->date()
                     ->sortable(),
+                TextColumn::make('heure_debut')
+                    ->label('Heure début')
+                    ->time()
+                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                TextColumn::make('heure_fin')
+                    ->label('Heure fin')
+                    ->time()
+                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                TextColumn::make('heures_travaillees')
+                    ->label('Heures travaillées')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('heures_supplementaires')
+                    ->label('Heures Supp.')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('status')
                     ->label('Statut')
                     ->badge()
@@ -201,24 +219,6 @@ class PointageManageResource extends Resource
                         'retard' => 'warning',
                         default => 'gray',
                     }),
-                TextColumn::make('heure_debut')
-                    ->label('Heure début')
-                    ->time()
-                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
-                TextColumn::make('heure_fin')
-                    ->label('Heure fin')
-                    ->time()
-                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
-                TextColumn::make('heures_travaillees')
-                    ->label('Heures travaillées')
-                    ->numeric()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: false),
-                TextColumn::make('heures_supplementaires')
-                    ->label('Heures Supp.')
-                    ->numeric()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('commentaire')
                     ->label('Commentaire')
                     ->limit(50),
