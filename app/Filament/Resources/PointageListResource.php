@@ -74,12 +74,14 @@ class PointageListResource extends Resource
                     ->searchable(),
                 TextColumn::make('heures_travaillees')
                     ->label('Heures Travaillées')
-                    ->numeric(2)
-                    ->sortable(),
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('heures_supplementaires')
                     ->label('Heures Supp.')
-                    ->numeric(2)
-                    ->sortable(),
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('coefficient')
                     ->label('Coef.')
                     ->numeric(2)

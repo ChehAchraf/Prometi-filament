@@ -211,8 +211,14 @@ class PointageManageResource extends Resource
                     ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
                 TextColumn::make('heures_travaillees')
                     ->label('Heures travaillées')
-                    ->numeric(2)
-                    ->visible(fn ($record) => $record && in_array($record->status, ['present', 'retard'])),
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('heures_supplementaires')
+                    ->label('Heures Supp.')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('commentaire')
                     ->label('Commentaire')
                     ->limit(50),
