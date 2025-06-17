@@ -33,27 +33,26 @@ class PointageListResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('users');
+        return parent::getEloquentQuery()->with('user');
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('users.name')
-                    ->label('Agents')
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Agent')
                     ->formatStateUsing(function ($state, $record) {
-                        $users = $record->users;
-                        if ($users->isEmpty()) {
+                        $user = $record->user;
+                        if (!$user) {
                             return '-';
                         }
                         
-                        return $users->map(function ($user) {
-                            return "{$user->name}";
-                        })->implode(', ');
+                        return $user->name;
                     })
                     ->html()
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('project.name')
                     ->label('Projet')
                     ->searchable(),

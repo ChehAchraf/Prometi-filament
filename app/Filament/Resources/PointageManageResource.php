@@ -277,7 +277,7 @@ class PointageManageResource extends Resource
 
         $start = \Carbon\Carbon::parse($startTime);
         $end = \Carbon\Carbon::parse($endTime);
-        
+
         // If end time is before start time, assume it's the next day
         if ($end->lt($start)) {
             $end->addDay();
@@ -286,15 +286,21 @@ class PointageManageResource extends Resource
         // Calculate total hours
         $totalHours = $end->floatDiffInHours($start);
 
-        // Check if working period overlaps lunch break (12:00-13:00)
+        // Define lunch break
         $lunchStart = \Carbon\Carbon::parse($start->format('Y-m-d') . ' 12:00');
         $lunchEnd = \Carbon\Carbon::parse($start->format('Y-m-d') . ' 13:00');
 
-        if ($start->lt($lunchEnd) && $end->gt($lunchStart)) {
-            // Working period overlaps lunch break, deduct 1 hour
-            $totalHours -= 1;
+        // Check if the work period overlaps with the lunch break
+        if ($start < $lunchEnd && $end > $lunchStart) {
+            // Calculate the overlap duration
+            $overlapStart = $start->max($lunchStart);
+            $overlapEnd = $end->min($lunchEnd);
+            $overlapDuration = $overlapEnd->floatDiffInHours($overlapStart);
+
+            // Deduct the overlap from total hours, ensuring not to deduct more than 1 hour
+            $totalHours -= min($overlapDuration, 1.0);
         }
 
-        $set('total_hours', round($totalHours, 2));
+        $set('total_hours', round(max(0, $totalHours), 2));
     }
 } 
