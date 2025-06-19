@@ -21,6 +21,8 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
+use Filament\Tables\Actions\BulkAction;
+use Illuminate\Database\Eloquent\Collection;
 
 class PointageManageResource extends Resource
 {
@@ -288,6 +290,16 @@ class PointageManageResource extends Resource
                         return $query;
                     }),
             ])
+            ->headerActions([
+                Action::make('export')
+                    ->label('Exporter')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->action(function ($livewire) {
+                        $records = $livewire->getFilteredTableQuery()->get();
+                        return self::exportCsv($records);
+                    }),
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Action::make('approve_overtime')
@@ -307,6 +319,10 @@ class PointageManageResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    BulkAction::make('exportSelection')
+                        ->label('Exporter la sélection')
+                        ->icon('heroicon-o-document-arrow-down')
+                        ->action(fn (Collection $records) => self::exportCsv($records)),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
@@ -318,6 +334,30 @@ class PointageManageResource extends Resource
             'index' => Pages\ListPointages::route('/'),
             'create' => Pages\CreatePointage::route('/create'),
         ];
+    }
+
+    public static function exportCsv(Collection $records)
+    {
+        return response()->streamDownload(function () use ($records) {
+            // Add BOM for Excel to properly recognize UTF-8
+            echo "\xEF\xBB\xBF";
+            // Headers with proper formatting
+            echo "Date;Agent;Projet;Heures Travaillées;Heures Supplémentaires;Coefficient;Heures Pondérées;Statut\n";
+
+            foreach ($records as $record) {
+                // Properly escape fields and use semicolon as delimiter
+                $date = $record->date;
+                $agent = str_replace(';', ' ', $record->user->name ?? 'N/A');
+                $project = str_replace(';', ' ', $record->project->name ?? 'N/A');
+                $heures = $record->heures_travaillees;
+                $heures_supp = $record->heures_supplementaires;
+                $coef = $record->coefficient;
+                $heures_pond = $record->getWeightedHoursAttribute();
+                $status = $record->status;
+
+                echo "\"{$date}\";\"{$agent}\";\"{$project}\";\"{$heures}\";\"{$heures_supp}\";\"{$coef}\";\"{$heures_pond}\";\"{$status}\"\n";
+            }
+        }, 'pointages-' . now()->format('Y-m-d') . '.csv');
     }
 
     protected static function calculateTotalHours($startTime, $endTime, callable $set): void

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\CollaboratorRegistrationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,3 +17,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('register', [CollaboratorRegistrationController::class, 'create'])->name('register');
+Route::post('register', [CollaboratorRegistrationController::class, 'store']);

@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -30,23 +31,27 @@ class PointageReportTable extends Component implements HasForms, HasTable
     public $startDate;
     public $endDate;
     public $projectId;
+    public $userId;
     public $reportType = 'daily';
     
-    public function mount($startDate = null, $endDate = null, $projectId = null, $reportType = 'daily')
+    public function mount($startDate = null, $endDate = null, $projectId = null, $userId = null, $reportType = 'daily')
     {
         $this->startDate = $startDate ?? now()->startOfMonth()->format('Y-m-d');
         $this->endDate = $endDate ?? now()->endOfMonth()->format('Y-m-d');
         $this->projectId = $projectId;
+        $this->userId = $userId;
         $this->reportType = $reportType;
     }
     
     public function getTableQuery(): Builder
     {
         $query = Pointage::query()
+            ->join('users', 'pointages.user_id', '=', 'users.id')
             ->join('projects', 'pointages.project_id', '=', 'projects.id')
             ->select([
                 'pointages.id',
                 'pointages.date',
+                'users.name as user_name',
                 'projects.name as project_name',
                 'pointages.heures_travaillees',
                 'pointages.heures_supplementaires',
@@ -66,11 +71,16 @@ class PointageReportTable extends Component implements HasForms, HasTable
         if ($this->projectId) {
             $query->where('pointages.project_id', $this->projectId);
         }
+
+        if ($this->userId) {
+            $query->where('pointages.user_id', $this->userId);
+        }
         
         // Group by based on report type
         if ($this->reportType === 'weekly') {
             $query->select([
-                DB::raw('pointages.id || "-" || projects.id as id'),
+                DB::raw('pointages.user_id || "-" || projects.id || "-" || strftime("%Y%W", pointages.date) as id'),
+                'users.name as user_name',
                 DB::raw('strftime("%Y%W", pointages.date) as year_week'),
                 DB::raw('MIN(pointages.date) as date'),
                 'projects.name as project_name',
@@ -80,10 +90,11 @@ class PointageReportTable extends Component implements HasForms, HasTable
                 DB::raw('SUM(pointages.heures_travaillees * pointages.coefficient) as heures_ponderees'),
                 DB::raw('MAX(pointages.status) as status'),
             ])
-            ->groupBy(DB::raw('strftime("%Y%W", pointages.date)'), 'projects.id');
+            ->groupBy(DB::raw('strftime("%Y%W", pointages.date)'), 'users.id', 'projects.id');
         } elseif ($this->reportType === 'monthly') {
             $query->select([
-                DB::raw('pointages.id || "-" || projects.id as id'),
+                DB::raw('pointages.user_id || "-" || projects.id || "-" || strftime("%Y-%m", pointages.date) as id'),
+                'users.name as user_name',
                 DB::raw('strftime("%Y-%m-01", pointages.date) as date'),
                 'projects.name as project_name',
                 DB::raw('SUM(pointages.heures_travaillees) as heures_travaillees'),
@@ -92,7 +103,7 @@ class PointageReportTable extends Component implements HasForms, HasTable
                 DB::raw('SUM(pointages.heures_travaillees * pointages.coefficient) as heures_ponderees'),
                 DB::raw('MAX(pointages.status) as status'),
             ])
-            ->groupBy(DB::raw('strftime("%Y-%m", pointages.date)'), 'projects.id');
+            ->groupBy(DB::raw('strftime("%Y-%m", pointages.date)'), 'users.id', 'projects.id');
         }
         
         return $query;
@@ -106,27 +117,38 @@ class PointageReportTable extends Component implements HasForms, HasTable
                 ->date()
                 ->sortable(),
                 
+            TextColumn::make('user_name')
+                ->label('Agent')
+                ->searchable()
+                ->sortable(),
+                
             TextColumn::make('project_name')
                 ->label('Projet')
-                ->searchable(),
+                ->searchable()
+                ->sortable(),
                 
             TextColumn::make('heures_travaillees')
-                ->label('Heures travaillées')
-                ->numeric(2)
-                ->sortable(),
+                ->label('Heures Travaillées')
+                ->numeric()
+                ->sortable()
+                ->summarize(Sum::make()->label('Total')->numeric(2)),
                 
             TextColumn::make('heures_supplementaires')
-                ->label('Heures supplémentaires')
-                ->numeric(2)
-                ->sortable(),
+                ->label('Heures Supp.')
+                ->numeric()
+                ->sortable()
+                ->summarize(Sum::make()->label('Total')->numeric(2)),
                 
             TextColumn::make('coefficient')
                 ->label('Coefficient')
-                ->numeric(2),
+                ->numeric(2)
+                ->sortable(),
                 
             TextColumn::make('heures_ponderees')
-                ->label('Heures pondérées')
-                ->numeric(2),
+                ->label('Heures Pondérées')
+                ->numeric(2)
+                ->sortable()
+                ->summarize(Sum::make()->label('Total')->numeric(2)),
                 
             TextColumn::make('status')
                 ->label('Statut')
@@ -203,7 +225,7 @@ class PointageReportTable extends Component implements HasForms, HasTable
     public function getTableHeaderActions(): array
     {
         return [
-            \Filament\Tables\Actions\Action::make('exportAll')
+            Action::make('exportAll')
                 ->label('Exporter tout')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('success')
@@ -214,19 +236,20 @@ class PointageReportTable extends Component implements HasForms, HasTable
                         // Add BOM for Excel to properly recognize UTF-8
                         echo "\xEF\xBB\xBF";
                         // Headers with proper formatting
-                        echo "Date, Projet, Heures Travaillées, Heures Supplémentaires, Coefficient, Heures Pondérées, Statut\n";
+                        echo "Date;Agent;Projet;Heures Travaillées;Heures Supplémentaires;Coefficient;Heures Pondérées;Statut\n";
                         
                         foreach ($records as $record) {
-                            // Properly escape fields and add spaces after commas
+                            // Properly escape fields and use semicolon as delimiter
                             $date = $record->date;
-                            $project = str_replace(',', ' ', $record->project_name);
+                            $agent = str_replace(';', ' ', $record->user_name ?? 'N/A');
+                            $project = str_replace(';', ' ', $record->project_name);
                             $heures = $record->heures_travaillees;
                             $heures_supp = $record->heures_supplementaires;
                             $coef = $record->coefficient;
                             $heures_pond = $record->heures_ponderees;
                             $status = $record->status;
                             
-                            echo "\"{$date}\", \"{$project}\", {$heures}, {$heures_supp}, {$coef}, {$heures_pond}, \"{$status}\"\n";
+                            echo "\"{$date}\";\"{$agent}\";\"{$project}\";\"{$heures}\";\"{$heures_supp}\";\"{$coef}\";\"{$heures_pond}\";\"{$status}\"\n";
                         }
                     }, 'tous-pointages-' . now()->format('Y-m-d') . '.csv');
                 }),
@@ -244,19 +267,20 @@ class PointageReportTable extends Component implements HasForms, HasTable
                         // Add BOM for Excel to properly recognize UTF-8
                         echo "\xEF\xBB\xBF";
                         // Headers with proper formatting
-                        echo "Date, Projet, Heures Travaillées, Heures Supplémentaires, Coefficient, Heures Pondérées, Statut\n";
+                        echo "Date;Agent;Projet;Heures Travaillées;Heures Supplémentaires;Coefficient;Heures Pondérées;Statut\n";
                         
                         foreach ($records as $record) {
-                            // Properly escape fields and add spaces after commas
+                            // Properly escape fields and use semicolon as delimiter
                             $date = $record->date;
-                            $project = str_replace(',', ' ', $record->project_name);
+                            $agent = str_replace(';', ' ', $record->user_name ?? 'N/A');
+                            $project = str_replace(';', ' ', $record->project_name);
                             $heures = $record->heures_travaillees;
                             $heures_supp = $record->heures_supplementaires;
                             $coef = $record->coefficient;
                             $heures_pond = $record->heures_ponderees;
                             $status = $record->status;
                             
-                            echo "\"{$date}\", \"{$project}\", {$heures}, {$heures_supp}, {$coef}, {$heures_pond}, \"{$status}\"\n";
+                            echo "\"{$date}\";\"{$agent}\";\"{$project}\";\"{$heures}\";\"{$heures_supp}\";\"{$coef}\";\"{$heures_pond}\";\"{$status}\"\n";
                         }
                     }, 'pointages-selection-' . now()->format('Y-m-d') . '.csv');
                 }),
@@ -269,6 +293,7 @@ class PointageReportTable extends Component implements HasForms, HasTable
         $this->startDate = $params['startDate'] ?? $this->startDate;
         $this->endDate = $params['endDate'] ?? $this->endDate;
         $this->projectId = $params['projectId'] ?? $this->projectId;
+        $this->userId = $params['userId'] ?? $this->userId;
         $this->reportType = $params['reportType'] ?? $this->reportType;
     }
     
