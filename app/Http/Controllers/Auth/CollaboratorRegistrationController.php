@@ -35,8 +35,6 @@ class CollaboratorRegistrationController extends Controller
 
         event(new Registered($user));
 
-        Auth::login($user);
-
-        return redirect(route('filament.admin.pages.dashboard'));
+        return redirect(route('filament.admin.auth.login'))->with('success', 'Votre compte collaborateur a été créé avec succès.');
     }
 }
