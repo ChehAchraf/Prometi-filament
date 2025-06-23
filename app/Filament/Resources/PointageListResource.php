@@ -19,6 +19,8 @@ use Filament\Tables\Actions\ExportAction;
 use Filament\Tables\Actions\BulkAction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Redirect;
 
 class PointageListResource extends Resource
 {
@@ -49,15 +51,14 @@ class PointageListResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Agent')
-                    ->formatStateUsing(function ($state, $record) {
-                        $user = $record->user;
-                        if (!$user) {
-                            return '-';
-                        }
-                        
-                        return $user->name;
-                    })
-                    ->html()
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('user.matricule')
+                    ->label('Matricule')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('user.fonction')
+                    ->label('Fonction')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('project.name')
@@ -68,6 +69,10 @@ class PointageListResource extends Resource
                     ->date()
                     ->sortable()
                     ->searchable(),
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Statut')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('is_jour_ferie')
                     ->label('Jour Férié')
                     ->boolean(),
@@ -194,14 +199,32 @@ class PointageListResource extends Resource
                             ->label('Heure Début'),
                         Forms\Components\TimePicker::make('heure_fin')
                             ->label('Heure Fin'),
+                        Forms\Components\Select::make('status')
+                            ->label('Statut')
+                            ->options([
+                                'present' => 'Présent',
+                                'retard' => 'Retard',
+                                'absent' => 'Absent',
+                                'conge' => 'Congé',
+                                'mission' => 'Mission',
+                                'weekend' => 'Weekend',
+                            ])
+                            ->required(),
                     ]),
+                Tables\Actions\DeleteAction::make(),
                 Action::make('approve_overtime')
                     ->label('Approuver HS')
                     ->icon('heroicon-o-check-circle')
-                    ->color('success')
+                    ->action(function ($record) {
+                        $record->approveOvertime(true);
+                        Notification::make()
+                            ->title('Heures supplémentaires approuvées')
+                            ->success()
+                            ->send();
+                        return Redirect::back();
+                    })
                     ->requiresConfirmation()
-                    ->action(fn (Pointage $record) => $record->approveOvertime(true))
-                    ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && !$record->heures_supplementaires_approuvees),
+                    ->visible(fn ($record) => $record->heures_supplementaires > 0 && !$record->heures_supplementaires_approuvees),
                 Action::make('disapprove_overtime')
                     ->label('Désapprouver HS')
                     ->icon('heroicon-o-x-circle')

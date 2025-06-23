@@ -390,8 +390,7 @@ class PointageManageResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPointages::route('/'),
-            'create' => Pages\CreatePointage::route('/create'),
+            'index' => Pages\CreatePointage::route('/'),
         ];
     }
 

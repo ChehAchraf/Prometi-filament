@@ -160,6 +160,7 @@ class Pointage extends Model
     public function approveOvertime($approve = true)
     {
         $this->heures_supplementaires_approuvees = $approve;
+        $this->save();
         return $this;
     }
     

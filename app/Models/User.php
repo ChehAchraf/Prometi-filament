@@ -28,6 +28,8 @@ class User extends Authenticatable implements FilamentUser
         'city',
         'role',
         'status',
+        'matricule',
+        'fonction',
     ];
 
     /**
