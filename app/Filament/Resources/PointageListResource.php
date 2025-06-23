@@ -173,6 +173,28 @@ class PointageListResource extends Resource
                     }),
             ])
             ->actions([
+                Tables\Actions\EditAction::make()
+                    ->form([
+                        Forms\Components\Select::make('user_id')
+                            ->relationship('user', 'name')
+                            ->label('Agent')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('project_id')
+                            ->relationship('project', 'name')
+                            ->label('Projet')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\DatePicker::make('date')
+                            ->label('Date')
+                            ->required(),
+                        Forms\Components\TimePicker::make('heure_debut')
+                            ->label('Heure Début'),
+                        Forms\Components\TimePicker::make('heure_fin')
+                            ->label('Heure Fin'),
+                    ]),
                 Action::make('approve_overtime')
                     ->label('Approuver HS')
                     ->icon('heroicon-o-check-circle')
@@ -187,8 +209,7 @@ class PointageListResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Pointage $record) => $record->approveOvertime(false))
                     ->visible(fn (Pointage $record): bool => $record->heures_supplementaires > 0 && $record->heures_supplementaires_approuvees),
-            ])
-            ->bulkActions([]);
+            ]);
     }
 
     public static function getPages(): array

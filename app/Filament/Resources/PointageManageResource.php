@@ -7,7 +7,7 @@ use App\Models\Pointage;
 use App\Models\Project;
 use App\Models\User;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Forms\Form as FilamentForm;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -47,7 +47,7 @@ class PointageManageResource extends Resource
         return parent::getEloquentQuery()->with('user');
     }
 
-    public static function form(Form $form): Form
+    public static function form(FilamentForm $form): FilamentForm
     {
         return $form
             ->schema([
@@ -56,7 +56,11 @@ class PointageManageResource extends Resource
                     ->searchable()
                     ->required()
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set) {
+                    ->afterStateUpdated(function (string $operation, $state, callable $set) {
+                        if ($operation !== 'create') {
+                            return;
+                        }
+
                         if ($state) {
                             $project = Project::find($state);
                             if ($project) {
@@ -87,6 +91,8 @@ class PointageManageResource extends Resource
                             } else {
                                 $set('agents_table', []);
                             }
+                        } else {
+                            $set('agents_table', []);
                         }
                     }),
                 DatePicker::make('date')
@@ -101,14 +107,27 @@ class PointageManageResource extends Resource
                         Forms\Components\Repeater::make('agents_table')
                             ->label('Tableau des agents')
                             ->schema([
-                                Forms\Components\Hidden::make('agent_id')
-                                    ->required(),
-                                Forms\Components\TextInput::make('agent_name')
+                                Select::make('agent_id')
                                     ->label('Agent')
-                                    ->disabled()
-                                    ->columnSpan(1),
+                                    ->options(function (callable $get) {
+                                        $projectId = $get('../../project_id');
+                                        if (!$projectId) {
+                                            return [];
+                                        }
+                                        $project = Project::find($projectId);
+                                        if (!$project) {
+                                            return [];
+                                        }
+                                        return $project->users()
+                                            ->where(function ($query) {
+                                                $query->whereRaw('LOWER(users.role) = ?', ['agent'])
+                                                      ->orWhereRaw('LOWER(users.role) = ?', ['colaborateur']);
+                                            })
+                                            ->pluck('name', 'id');
+                                    })
+                                    ->searchable()
+                                    ->required(),
                                 Select::make('status')
-                                    ->label('Statut')
                                     ->options([
                                         'present' => 'Présent',
                                         'absent' => 'Absent',
@@ -117,9 +136,7 @@ class PointageManageResource extends Resource
                                         'retard' => 'Retard',
                                     ])
                                     ->default('present')
-                                    ->required()
-                                    ->live()
-                                    ->columnSpan(1),
+                                    ->required(),
                                 TimePicker::make('heure_debut')
                                     ->label('Heure de début')
                                     ->seconds(false)
@@ -158,8 +175,10 @@ class PointageManageResource extends Resource
                                 'md' => 3,
                                 'lg' => 5,
                             ])
-                            ->itemLabel(fn (array $state): ?string => $state['agent_name'] ?? 'Agent')
-                            ->collapsible(false)
+                            ->itemLabel(fn (array $state): ?string => User::find($state['agent_id'])?->name ?? null)
+                            ->collapsible()
+                            ->reorderableWithButtons()
+                            ->addActionLabel('Add to tableau des agents')
                             ->defaultItems(0)
                             ->live(),
                     ]),
@@ -167,7 +186,7 @@ class PointageManageResource extends Resource
                     ->label('Approuver automatiquement les heures supplémentaires')
                     ->helperText('Cochez pour approuver automatiquement les heures supplémentaires')
                     ->default(false),
-            ]);
+            ])->model(Pointage::class);
     }
 
     public static function table(Table $table): Table
@@ -301,7 +320,47 @@ class PointageManageResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->mountUsing(function (Forms\ComponentContainer $form, Pointage $record) {
+                        $form->fill([
+                            'project_id' => $record->project_id,
+                            'date' => $record->date,
+                            'is_jour_ferie' => $record->is_jour_ferie,
+                            'agents_table' => [
+                                [
+                                    'agent_id' => $record->user_id,
+                                    'status' => $record->status,
+                                    'heure_debut' => $record->heure_debut,
+                                    'heure_fin' => $record->heure_fin,
+                                    'total_hours' => $record->heures_travaillees,
+                                    'commentaire' => $record->commentaire,
+                                ]
+                            ]
+                        ]);
+                    })
+                    ->action(function (Pointage $record, array $data): void {
+                        $agentData = $data['agents_table'][0];
+
+                        $updates = [
+                            'project_id' => $data['project_id'],
+                            'date' => $data['date'],
+                            'is_jour_ferie' => $data['is_jour_ferie'],
+                            'user_id' => $agentData['agent_id'],
+                            'status' => $agentData['status'],
+                            'commentaire' => $agentData['commentaire'] ?? null,
+                            'heure_debut' => null,
+                            'heure_fin' => null,
+                            'heures_travaillees' => 0,
+                        ];
+
+                        if (in_array($agentData['status'], ['present', 'retard'])) {
+                            $updates['heure_debut'] = $agentData['heure_debut'];
+                            $updates['heure_fin'] = $agentData['heure_fin'];
+                            $updates['heures_travaillees'] = $agentData['total_hours'];
+                        }
+
+                        $record->update($updates);
+                    }),
                 Action::make('approve_overtime')
                     ->label('Approuver HS')
                     ->icon('heroicon-o-check-circle')
