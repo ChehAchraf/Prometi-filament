@@ -42,7 +42,7 @@ class PointageListResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('user');
+        return parent::getEloquentQuery()->with(['user', 'project']);
     }
 
     public static function table(Table $table): Table
@@ -163,7 +163,10 @@ class PointageListResource extends Resource
                     BulkAction::make('exportSelection')
                         ->label('Exporter la sélection')
                         ->icon('heroicon-o-document-arrow-down')
-                        ->action(fn (Collection $records) => self::exportCsv($records)),
+                        ->action(function (Collection $records) {
+                        $records->load(['user', 'project']);
+                        return self::exportCsv($records);
+                    }),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
@@ -173,7 +176,7 @@ class PointageListResource extends Resource
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('success')
                     ->action(function ($livewire) {
-                        $records = $livewire->getFilteredTableQuery()->get();
+                        $records = $livewire->getFilteredTableQuery()->with(['user', 'project'])->get();
                         return self::exportCsv($records);
                     }),
             ])
@@ -244,16 +247,19 @@ class PointageListResource extends Resource
 
     public static function exportCsv(Collection $records)
     {
+        $records->loadMissing(['user', 'project']);
         return response()->streamDownload(function () use ($records) {
             // Add BOM for Excel to properly recognize UTF-8
             echo "\xEF\xBB\xBF";
             // Headers with proper formatting
-            echo "Date;Agent;Projet;Heures Travaillées;Heures Supplémentaires;Coefficient;Heures Pondérées;Statut\n";
+            echo "Date;Agent;Matricule;Fonction;Projet;Heures Travaillées;Heures Supplémentaires;Coefficient;Heures Pondérées;Statut\n";
 
             foreach ($records as $record) {
                 // Properly escape fields and use semicolon as delimiter
                 $date = $record->date;
                 $agent = str_replace(';', ' ', $record->user->name ?? 'N/A');
+                $matricule = str_replace(';', ' ', $record->user->matricule ?? 'N/A');
+                $fonction = str_replace(';', ' ', $record->user->fonction ?? 'N/A');
                 $project = str_replace(';', ' ', $record->project->name ?? 'N/A');
                 $heures = $record->heures_travaillees;
                 $heures_supp = $record->heures_supplementaires;
@@ -261,7 +267,7 @@ class PointageListResource extends Resource
                 $heures_pond = $record->getWeightedHoursAttribute();
                 $status = $record->status;
 
-                echo "\"{$date}\";\"{$agent}\";\"{$project}\";\"{$heures}\";\"{$heures_supp}\";\"{$coef}\";\"{$heures_pond}\";\"{$status}\"\n";
+                echo "\"{$date}\";\"{$agent}\";\"{$matricule}\";\"{$fonction}\";\"{$project}\";\"{$heures}\";\"{$heures_supp}\";\"{$coef}\";\"{$heures_pond}\";\"{$status}\"\n";
             }
         }, 'pointages-' . now()->format('Y-m-d') . '.csv');
     }

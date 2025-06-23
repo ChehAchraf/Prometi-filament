@@ -105,6 +105,8 @@ class UserResource extends Resource
                     ->searchable(),
                 TextColumn::make('matricule')
                     ->searchable(),
+                TextColumn::make('fonction')
+                    ->searchable(),
             ])
             ->filters([
                 //
